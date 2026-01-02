@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -31,19 +32,33 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-slate-100">
       <form
         onSubmit={handleLogin}
-        className="border p-6 rounded w-full max-w-sm"
+        className="bg-white border border-slate-200 p-8 rounded-xl w-full max-w-sm shadow"
       >
-        <h1 className="text-2xl font-bold mb-4">Login</h1>
+        <div className="flex flex-col items-center mb-6">
+          <Image
+            src="/logo-mario-stefano-grandi.png"
+            alt="Mario Stefano Grandi"
+            width={72}
+            height={72}
+            priority
+          />
+          <h1 className="mt-4 text-lg font-semibold text-center text-[#00243F]">
+            Mario Stefano Grandi
+          </h1>
+          <p className="text-sm text-slate-500">
+            Accesso HSE Leads Dashboard
+          </p>
+        </div>
 
         <input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full border p-2 mb-3"
+          className="w-full border p-2 mb-3 rounded"
           required
         />
 
@@ -52,7 +67,7 @@ export default function LoginPage() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full border p-2 mb-4"
+          className="w-full border p-2 mb-4 rounded"
           required
         />
 
@@ -63,7 +78,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-black text-white py-2 rounded"
+          className="w-full py-2 rounded text-white bg-[#00243F] disabled:opacity-50"
         >
           {loading ? 'Accesso...' : 'Accedi'}
         </button>
