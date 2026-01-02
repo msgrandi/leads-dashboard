@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 type Lead = {
   id: number
@@ -11,12 +12,24 @@ type Lead = {
 }
 
 export default function Dashboard() {
+  const router = useRouter()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchLeads()
+    checkSession()
   }, [])
+
+  async function checkSession() {
+    const { data } = await supabase.auth.getSession()
+
+    if (!data.session) {
+      router.push('/login')
+      return
+    }
+
+    fetchLeads()
+  }
 
   async function fetchLeads() {
     const { data, error } = await supabase
