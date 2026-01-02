@@ -8,6 +8,9 @@ type Lead = {
   id: number
   nome: string
   telefono: string
+  email: string
+  interesse: string
+  stato: string
   created_at: string
 }
 
@@ -118,6 +121,19 @@ export default function Dashboard() {
                 </div>
 
                 <p className="text-sm text-slate-600 mt-2">📞 {lead.telefono}</p>
+                {lead.email && <p className="text-sm text-slate-600">📧 {lead.email}</p>}
+                {lead.interesse && <p className="text-sm text-slate-600">🎯 {lead.interesse}</p>}
+                <p className="text-xs text-slate-400 mt-2">Stato: {lead.stato}</p>
+
+                {/* BOTTONE VEDI MESSAGGI */}
+                <button
+                  onClick={() => router.push(`/lead/${lead.id}`)}
+                  className="mt-4 bg-[#00243F] text-white px-4 py-2 rounded-lg
+                             hover:bg-[#003D66] transition-all duration-200 text-sm font-medium
+                             shadow-sm w-full sm:w-auto"
+                >
+                  👁️ Vedi messaggi
+                </button>
               </div>
             ))}
           </div>
