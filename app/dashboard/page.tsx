@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import NewLeadModal from './components/NewLeadModal'
 
 type Lead = {
   id: number
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const router = useRouter()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Controllo sessione
   useEffect(() => {
@@ -88,13 +90,22 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Logout */}
-          <div className="mt-4 md:mt-0">
+          {/* Bottoni: Nuovo Lead + Logout */}
+          <div className="mt-4 md:mt-0 flex gap-3">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="bg-white text-[#00243F] px-5 py-2 rounded-lg
+                         hover:bg-gray-100 transition-all duration-200 font-medium shadow-sm
+                         flex items-center gap-2"
+            >
+              <span className="text-xl">+</span> Nuovo Lead
+            </button>
+            
             <button
               onClick={handleLogout}
               className="border border-white px-5 py-2 rounded-lg
                          text-sm text-white hover:bg-white hover:text-[#00243F]
-                         transition-all duration-200 font-medium shadow-sm w-full md:w-auto"
+                         transition-all duration-200 font-medium shadow-sm"
             >
               Logout →
             </button>
@@ -139,6 +150,16 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* Modal Nuovo Lead */}
+      <NewLeadModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => {
+          fetchLeads()
+          setIsModalOpen(false)
+        }}
+      />
     </div>
   )
 }
