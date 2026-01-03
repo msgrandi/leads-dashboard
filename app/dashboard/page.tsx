@@ -126,8 +126,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Bottoni: Nuovo Lead + Logout */}
-          <div className="mt-4 md:mt-0 flex gap-3">
+          {/* Bottoni: Nuovo Lead + Impostazioni + Logout */}
+          <div className="mt-4 md:mt-0 flex gap-3 flex-wrap">
             <button
               onClick={() => setIsModalOpen(true)}
               className="bg-white text-[#00243F] px-5 py-2 rounded-lg
@@ -135,6 +135,15 @@ export default function Dashboard() {
                          flex items-center gap-2"
             >
               <span className="text-xl">+</span> Nuovo Lead
+            </button>
+            
+            <button
+              onClick={() => router.push('/settings')}
+              className="border border-white px-5 py-2 rounded-lg
+                         text-sm text-white hover:bg-white hover:text-[#00243F]
+                         transition-all duration-200 font-medium shadow-sm"
+            >
+              ⚙️ Impostazioni
             </button>
             
             <button
