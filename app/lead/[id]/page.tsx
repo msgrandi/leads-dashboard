@@ -150,7 +150,7 @@ export default function LeadPage() {
       ) : (
         <div className="space-y-8">
           {/* SEZIONE WHATSAPP */}
-          {mostraWhatsApp && proposte.whatsapp_1_formale && (
+          {mostraWhatsApp && (proposte.whatsapp_1_formale || proposte.messaggio_1_formale) && (
             <div>
               <h2 className="text-xl font-bold mb-4">📱 Messaggi WhatsApp</h2>
               
@@ -158,23 +158,23 @@ export default function LeadPage() {
               <div className="border rounded-lg p-6 mb-4">
                 <h3 className="font-bold text-lg mb-3">💼 Messaggio Formale</h3>
                 <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
-                  {proposte.whatsapp_1_formale}
+                  {proposte.whatsapp_1_formale || proposte.messaggio_1_formale}
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <button
-                    onClick={() => approvaMessaggio('formale', proposte.whatsapp_1_formale!, 'whatsapp')}
+                    onClick={() => approvaMessaggio('formale', (proposte.whatsapp_1_formale || proposte.messaggio_1_formale)!, 'whatsapp')}
                     className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
                   >
                     ✅ Approva
                   </button>
                   <button
-                    onClick={() => copyToClipboard(proposte.whatsapp_1_formale!)}
+                    onClick={() => copyToClipboard((proposte.whatsapp_1_formale || proposte.messaggio_1_formale)!)}
                     className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
                   >
                     {copied ? '✅ Copiato!' : '📋 Copia'}
                   </button>
                   <button
-                    onClick={() => openWhatsApp(lead.telefono, proposte.whatsapp_1_formale!)}
+                    onClick={() => openWhatsApp(lead.telefono, (proposte.whatsapp_1_formale || proposte.messaggio_1_formale)!)}
                     className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                   >
                     📱 WhatsApp
@@ -186,23 +186,23 @@ export default function LeadPage() {
               <div className="border rounded-lg p-6 mb-4">
                 <h3 className="font-bold text-lg mb-3">😊 Messaggio Cordiale</h3>
                 <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
-                  {proposte.whatsapp_2_cordiale}
+                  {proposte.whatsapp_2_cordiale || proposte.messaggio_2_cordiale}
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <button
-                    onClick={() => approvaMessaggio('cordiale', proposte.whatsapp_2_cordiale!, 'whatsapp')}
+                    onClick={() => approvaMessaggio('cordiale', (proposte.whatsapp_2_cordiale || proposte.messaggio_2_cordiale)!, 'whatsapp')}
                     className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
                   >
                     ✅ Approva
                   </button>
                   <button
-                    onClick={() => copyToClipboard(proposte.whatsapp_2_cordiale!)}
+                    onClick={() => copyToClipboard((proposte.whatsapp_2_cordiale || proposte.messaggio_2_cordiale)!)}
                     className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
                   >
                     {copied ? '✅ Copiato!' : '📋 Copia'}
                   </button>
                   <button
-                    onClick={() => openWhatsApp(lead.telefono, proposte.whatsapp_2_cordiale!)}
+                    onClick={() => openWhatsApp(lead.telefono, (proposte.whatsapp_2_cordiale || proposte.messaggio_2_cordiale)!)}
                     className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                   >
                     📱 WhatsApp
@@ -214,23 +214,23 @@ export default function LeadPage() {
               <div className="border rounded-lg p-6 mb-4">
                 <h3 className="font-bold text-lg mb-3">⚡ Messaggio Urgenza</h3>
                 <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
-                  {proposte.whatsapp_3_urgenza}
+                  {proposte.whatsapp_3_urgenza || proposte.messaggio_3_urgenza}
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <button
-                    onClick={() => approvaMessaggio('urgenza', proposte.whatsapp_3_urgenza!, 'whatsapp')}
+                    onClick={() => approvaMessaggio('urgenza', (proposte.whatsapp_3_urgenza || proposte.messaggio_3_urgenza)!, 'whatsapp')}
                     className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
                   >
                     ✅ Approva
                   </button>
                   <button
-                    onClick={() => copyToClipboard(proposte.whatsapp_3_urgenza!)}
+                    onClick={() => copyToClipboard((proposte.whatsapp_3_urgenza || proposte.messaggio_3_urgenza)!)}
                     className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
                   >
                     {copied ? '✅ Copiato!' : '📋 Copia'}
                   </button>
                   <button
-                    onClick={() => openWhatsApp(lead.telefono, proposte.whatsapp_3_urgenza!)}
+                    onClick={() => openWhatsApp(lead.telefono, (proposte.whatsapp_3_urgenza || proposte.messaggio_3_urgenza)!)}
                     className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                   >
                     📱 WhatsApp
