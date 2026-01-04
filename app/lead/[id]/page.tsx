@@ -13,6 +13,7 @@ type Lead = {
   note: string
   stato: string
   canale_preferito: string
+  contesto_aggiuntivo: string
 }
 
 type Proposte = {
@@ -135,6 +136,15 @@ export default function LeadPage() {
           <p><strong>📞 Telefono:</strong> {lead.telefono}</p>
           <p><strong>🎯 Interesse:</strong> {lead.interesse}</p>
           {lead.note && <p><strong>📝 Note:</strong> {lead.note}</p>}
+          
+          {/* NUOVO: Visualizza contesto aggiuntivo */}
+          {lead.contesto_aggiuntivo && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm font-semibold text-blue-800 mb-1">💡 Contesto:</p>
+              <p className="text-sm text-blue-900 whitespace-pre-wrap">{lead.contesto_aggiuntivo}</p>
+            </div>
+          )}
+          
           <p><strong>📊 Stato:</strong> {lead.stato}</p>
           <p><strong>📲 Canale:</strong> {canale === 'entrambi' ? 'WhatsApp + Email' : canale === 'email' ? 'Email' : 'WhatsApp'}</p>
         </div>
