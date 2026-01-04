@@ -53,12 +53,14 @@ export default function LeadPage() {
       .eq('id', leadId)
       .single()
 
-    // Fetch proposte messaggi
+    // Fetch proposte messaggi - PRENDE IL PIÙ RECENTE
     const { data: proposteData } = await supabase
       .from('proposte_messaggi')
       .select('*')
       .eq('lead_id', leadId)
-      .single()
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
     setLead(leadData)
     setProposte(proposteData)
