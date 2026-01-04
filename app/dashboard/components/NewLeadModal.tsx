@@ -18,6 +18,7 @@ export default function NewLeadModal({ isOpen, onClose, onSuccess }: NewLeadModa
     interesse: '',
     note: '',
     dettagli_claude: '',
+    contesto_aggiuntivo: '',
     canale_preferito: 'whatsapp'
   })
 
@@ -61,6 +62,7 @@ export default function NewLeadModal({ isOpen, onClose, onSuccess }: NewLeadModa
         interesse: '',
         note: '',
         dettagli_claude: '',
+        contesto_aggiuntivo: '',
         canale_preferito: 'whatsapp'
       })
     } catch (error) {
@@ -175,6 +177,23 @@ export default function NewLeadModal({ isOpen, onClose, onSuccess }: NewLeadModa
                 rows={3}
                 placeholder="Prezzo: 299€ | Durata: 20 ore | Include certificato"
               />
+            </div>
+
+            {/* NUOVO: Contesto Aggiuntivo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Contesto Aggiuntivo <span className="text-xs text-gray-500">(chi è, da dove viene, interessi specifici)</span>
+              </label>
+              <textarea
+                value={formData.contesto_aggiuntivo}
+                onChange={(e) => setFormData({ ...formData, contesto_aggiuntivo: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                placeholder="Es: Ha partecipato al webinar 'Endodonzia Digitale' del 15/01. Ha fatto domande su CAD/CAM. Dentista da 5 anni, pratica privata."
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                💡 Più dettagli fornisci, più i messaggi saranno personalizzati e pertinenti!
+              </p>
             </div>
 
             {/* Canale Preferito */}
