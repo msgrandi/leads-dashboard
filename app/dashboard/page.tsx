@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import NewLeadModal from './components/NewLeadModal'
+import UploadExcelModal from './components/UploadExcelModal'
 
 type Lead = {
   id: number
@@ -22,6 +23,7 @@ export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [filtroAttivo, setFiltroAttivo] = useState<FiltroStato>('in_attesa_approvazione')
 
   // Controllo sessione
@@ -126,7 +128,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Bottoni: Nuovo Lead + Impostazioni + Logout */}
+          {/* Bottoni: Nuovo Lead + Upload Excel + Impostazioni + Logout */}
           <div className="mt-4 md:mt-0 flex gap-3 flex-wrap">
             <button
               onClick={() => setIsModalOpen(true)}
@@ -135,6 +137,15 @@ export default function Dashboard() {
                          flex items-center gap-2"
             >
               <span className="text-xl">+</span> Nuovo Lead
+            </button>
+            
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="bg-green-600 text-white px-5 py-2 rounded-lg
+                         hover:bg-green-700 transition-all duration-200 font-medium shadow-sm
+                         flex items-center gap-2"
+            >
+              📤 Upload Excel
             </button>
             
             <button
@@ -291,6 +302,16 @@ export default function Dashboard() {
         onSuccess={() => {
           fetchLeads()
           setIsModalOpen(false)
+        }}
+      />
+
+      {/* Modal Upload Excel */}
+      <UploadExcelModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onSuccess={() => {
+          fetchLeads()
+          setIsUploadModalOpen(false)
         }}
       />
     </div>
