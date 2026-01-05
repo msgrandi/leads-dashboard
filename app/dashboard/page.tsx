@@ -22,10 +22,12 @@ type FiltroStato = 'tutti' | 'nuovo' | 'in_attesa_approvazione' | 'approvato'
 export default function Dashboard() {
   const router = useRouter()
   const [leads, setLeads] = useState<Lead[]>([])
+  const [leadsFiltered, setLeadsFiltered] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [filtroAttivo, setFiltroAttivo] = useState<FiltroStato>('in_attesa_approvazione')
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Controllo sessione
   useEffect(() => {
@@ -38,6 +40,23 @@ export default function Dashboard() {
       fetchLeads()
     }
   }, [filtroAttivo])
+
+  // Filtra in base alla ricerca
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setLeadsFiltered(leads)
+      return
+    }
+
+    const query = searchQuery.toLowerCase()
+    const filtered = leads.filter(lead => 
+      lead.nome.toLowerCase().includes(query) ||
+      lead.email.toLowerCase().includes(query) ||
+      lead.telefono.includes(query) ||
+      lead.interesse.toLowerCase().includes(query)
+    )
+    setLeadsFiltered(filtered)
+  }, [searchQuery, leads])
 
   async function checkSession() {
     const { data } = await supabase.auth.getSession()
@@ -66,6 +85,7 @@ export default function Dashboard() {
       console.error('Errore fetch:', error)
     } else {
       setLeads(data || [])
+      setLeadsFiltered(data || [])
     }
 
     setLoading(false)
@@ -275,6 +295,38 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* BARRA RICERCA */}
+        <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="🔍 Cerca per nome, email, telefono o interesse..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-3 pl-12 border border-slate-300 rounded-lg
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                         text-slate-700"
+            />
+            <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 text-xl">
+              🔍
+            </span>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 
+                           text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <p className="text-sm text-slate-500 mt-2">
+              {leadsFiltered.length} risultat{leadsFiltered.length === 1 ? 'o' : 'i'} trovat{leadsFiltered.length === 1 ? 'o' : 'i'}
+            </p>
+          )}
+        </div>
+
         {/* FILTRI */}
         <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
           <p className="text-sm font-medium text-slate-700 mb-3">Mostra:</p>
@@ -323,17 +375,19 @@ export default function Dashboard() {
         </div>
 
         {/* LISTA LEAD */}
-        {leads.length === 0 ? (
+        {leadsFiltered.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg">
             <p className="text-slate-500">
-              {filtroAttivo === 'tutti' 
-                ? 'Nessun lead presente' 
-                : `Nessun lead con stato "${filtroAttivo}"`}
+              {searchQuery 
+                ? `Nessun risultato per "${searchQuery}"`
+                : filtroAttivo === 'tutti' 
+                  ? 'Nessun lead presente' 
+                  : `Nessun lead con stato "${filtroAttivo}"`}
             </p>
           </div>
         ) : (
           <div className="grid gap-4">
-            {leads.map((lead) => (
+            {leadsFiltered.map((lead) => (
               <div
                 key={lead.id}
                 className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
