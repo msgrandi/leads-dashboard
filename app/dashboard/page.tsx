@@ -74,6 +74,9 @@ export default function Dashboard() {
   // Export Excel
   async function exportToExcel() {
     try {
+      // Import dinamico di xlsx
+      const XLSX = await import('xlsx')
+      
       // Fetch TUTTI i lead con log delle attività
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
@@ -107,38 +110,35 @@ export default function Dashboard() {
         }
       })
 
-      // Converti in CSV
       if (!excelData || excelData.length === 0) {
         alert('Nessun dato da esportare')
         return
       }
 
-      const headers = Object.keys(excelData[0])
-      const csvContent = [
-        headers.join(','),
-        ...excelData.map(row => 
-          headers.map(header => {
-            const value = row[header as keyof typeof row]
-            // Escape virgole e virgolette
-            return typeof value === 'string' && (value.includes(',') || value.includes('"'))
-              ? `"${value.replace(/"/g, '""')}"`
-              : value
-          }).join(',')
-        )
-      ].join('\n')
+      // Crea workbook e worksheet
+      const worksheet = XLSX.utils.json_to_sheet(excelData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads')
 
-      // Download file
-      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
-      const link = document.createElement('a')
-      const url = URL.createObjectURL(blob)
-      link.setAttribute('href', url)
-      link.setAttribute('download', `HSE_Leads_Export_${new Date().toISOString().split('T')[0]}.csv`)
-      link.style.visibility = 'hidden'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      // Imposta larghezza colonne
+      const columnWidths = [
+        { wch: 25 }, // Nome Completo
+        { wch: 30 }, // Email
+        { wch: 15 }, // Telefono
+        { wch: 30 }, // Interesse
+        { wch: 20 }, // Stato
+        { wch: 15 }, // Canale
+        { wch: 20 }, // Data Creazione
+        { wch: 20 }, // Data Ultima Azione
+        { wch: 25 }, // Tipo Attività
+        { wch: 40 }  // Dettagli
+      ]
+      worksheet['!cols'] = columnWidths
 
-      alert('✅ Export completato!')
+      // Download file Excel
+      XLSX.writeFile(workbook, `HSE_Leads_Export_${new Date().toISOString().split('T')[0]}.xlsx`)
+
+      alert('✅ Export Excel completato!')
     } catch (error) {
       console.error('Errore export:', error)
       alert('❌ Errore durante l\'export')
