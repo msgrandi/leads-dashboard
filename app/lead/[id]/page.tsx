@@ -46,14 +46,12 @@ export default function LeadPage() {
   async function fetchLead() {
     const leadId = params.id
 
-    // Fetch lead
     const { data: leadData } = await supabase
       .from('leads')
       .select('*')
       .eq('id', leadId)
       .single()
 
-    // Fetch proposte messaggi - PRENDE IL PIÙ RECENTE
     const { data: proposteData } = await supabase
       .from('proposte_messaggi')
       .select('*')
@@ -61,9 +59,6 @@ export default function LeadPage() {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-
-    console.log('Lead:', leadData)
-    console.log('Proposte:', proposteData)
 
     setLead(leadData)
     setProposte(proposteData)
@@ -73,7 +68,6 @@ export default function LeadPage() {
   async function approvaMessaggio(tipo: string, messaggio: string, canale: string) {
     if (!lead) return
 
-    // Aggiorna lead
     await supabase
       .from('leads')
       .update({
@@ -84,7 +78,6 @@ export default function LeadPage() {
       })
       .eq('id', lead.id)
 
-    // Log
     await supabase
       .from('log')
       .insert({
@@ -103,7 +96,6 @@ export default function LeadPage() {
     setRegenerating(true)
 
     try {
-      // Salva feedback e cambia stato a "nuovo"
       const { error } = await supabase
         .from('leads')
         .update({
@@ -114,7 +106,6 @@ export default function LeadPage() {
 
       if (error) throw error
 
-      // Log
       await supabase
         .from('log')
         .insert({
@@ -125,11 +116,8 @@ export default function LeadPage() {
 
       alert('✅ Messaggi in rigenerazione! n8n genererà nuovi messaggi tra pochi minuti.')
       
-      // Chiudi modal e resetta
       setShowRegeneraModal(false)
       setFeedback('')
-      
-      // Torna alla dashboard
       router.push('/dashboard')
     } catch (error) {
       console.error('Errore rigenerazione:', error)
@@ -165,36 +153,53 @@ export default function LeadPage() {
     return <div className="p-8">Lead non trovato</div>
   }
 
-  // Determina quali messaggi mostrare
   const canale = lead.canale_preferito || 'whatsapp'
-  const mostraWhatsApp = canale === 'whatsapp' || canale === 'entrambi'
-  const mostraEmail = canale === 'email' || canale === 'entrambi'
 
-  // Parse email se presenti
-  let email1 = null
-  let email2 = null
-  let email3 = null
+  // LOGICA DEFINITIVA PER TUTTI I CANALI
+  let messaggiWhatsApp: { formale: string, cordiale: string, urgenza: string } | null = null
+  let messaggiEmail: { formale: any, cordiale: any, urgenza: any } | null = null
 
-  // Per canale "email", i messaggi sono in messaggio_1_formale invece di email_1_formale
-  const emailSource = canale === 'email' 
-    ? (proposte?.messaggio_1_formale ? 'messaggio' : null)
-    : (proposte?.email_1_formale ? 'email' : null)
-
-  if (emailSource === 'messaggio' && proposte?.messaggio_1_formale) {
-    try {
-      email1 = JSON.parse(proposte.messaggio_1_formale)
-      email2 = JSON.parse(proposte.messaggio_2_cordiale!)
-      email3 = JSON.parse(proposte.messaggio_3_urgenza!)
-    } catch (e) {
-      console.error('Errore parsing email da messaggio:', e)
+  if (canale === 'whatsapp') {
+    // SOLO WHATSAPP - usa messaggio_*
+    if (proposte?.messaggio_1_formale) {
+      messaggiWhatsApp = {
+        formale: proposte.messaggio_1_formale,
+        cordiale: proposte.messaggio_2_cordiale!,
+        urgenza: proposte.messaggio_3_urgenza!
+      }
     }
-  } else if (emailSource === 'email' && proposte?.email_1_formale) {
-    try {
-      email1 = JSON.parse(proposte.email_1_formale)
-      email2 = JSON.parse(proposte.email_2_cordiale!)
-      email3 = JSON.parse(proposte.email_3_urgenza!)
-    } catch (e) {
-      console.error('Errore parsing email:', e)
+  } else if (canale === 'email') {
+    // SOLO EMAIL - usa messaggio_* e fai parse
+    if (proposte?.messaggio_1_formale) {
+      try {
+        messaggiEmail = {
+          formale: JSON.parse(proposte.messaggio_1_formale),
+          cordiale: JSON.parse(proposte.messaggio_2_cordiale!),
+          urgenza: JSON.parse(proposte.messaggio_3_urgenza!)
+        }
+      } catch (e) {
+        console.error('Errore parsing email:', e)
+      }
+    }
+  } else if (canale === 'entrambi') {
+    // ENTRAMBI - usa whatsapp_* e email_*
+    if (proposte?.whatsapp_1_formale) {
+      messaggiWhatsApp = {
+        formale: proposte.whatsapp_1_formale,
+        cordiale: proposte.whatsapp_2_cordiale!,
+        urgenza: proposte.whatsapp_3_urgenza!
+      }
+    }
+    if (proposte?.email_1_formale) {
+      try {
+        messaggiEmail = {
+          formale: JSON.parse(proposte.email_1_formale),
+          cordiale: JSON.parse(proposte.email_2_cordiale!),
+          urgenza: JSON.parse(proposte.email_3_urgenza!)
+        }
+      } catch (e) {
+        console.error('Errore parsing email entrambi:', e)
+      }
     }
   }
 
@@ -215,7 +220,6 @@ export default function LeadPage() {
           <p><strong>🎯 Interesse:</strong> {lead.interesse}</p>
           {lead.note && <p><strong>📝 Note:</strong> {lead.note}</p>}
           
-          {/* Visualizza contesto aggiuntivo */}
           {lead.contesto_aggiuntivo && (
             <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm font-semibold text-blue-800 mb-1">💡 Contesto:</p>
@@ -251,104 +255,98 @@ export default function LeadPage() {
           </div>
 
           {/* SEZIONE WHATSAPP */}
-          {mostraWhatsApp && (proposte.whatsapp_1_formale || proposte.messaggio_1_formale) && !email1 && (
+          {messaggiWhatsApp && (
             <div>
               <h2 className="text-xl font-bold mb-4">📱 Messaggi WhatsApp</h2>
               
               {/* WhatsApp Formale */}
-              {(proposte.whatsapp_1_formale || proposte.messaggio_1_formale) && (
-                <div className="border rounded-lg p-6 mb-4">
-                  <h3 className="font-bold text-lg mb-3">💼 Messaggio Formale</h3>
-                  <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
-                    {proposte.whatsapp_1_formale || proposte.messaggio_1_formale}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => approvaMessaggio('formale', (proposte.whatsapp_1_formale || proposte.messaggio_1_formale)!, 'whatsapp')}
-                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                    >
-                      ✅ Approva
-                    </button>
-                    <button
-                      onClick={() => copyToClipboard((proposte.whatsapp_1_formale || proposte.messaggio_1_formale)!)}
-                      className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                    >
-                      {copied ? '✅ Copiato!' : '📋 Copia'}
-                    </button>
-                    <button
-                      onClick={() => openWhatsApp(lead.telefono, (proposte.whatsapp_1_formale || proposte.messaggio_1_formale)!)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    >
-                      📱 WhatsApp
-                    </button>
-                  </div>
+              <div className="border rounded-lg p-6 mb-4">
+                <h3 className="font-bold text-lg mb-3">💼 Messaggio Formale</h3>
+                <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
+                  {messaggiWhatsApp.formale}
                 </div>
-              )}
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => approvaMessaggio('formale', messaggiWhatsApp.formale, 'whatsapp')}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    ✅ Approva
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(messaggiWhatsApp.formale)}
+                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                  >
+                    {copied ? '✅ Copiato!' : '📋 Copia'}
+                  </button>
+                  <button
+                    onClick={() => openWhatsApp(lead.telefono, messaggiWhatsApp.formale)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    📱 WhatsApp
+                  </button>
+                </div>
+              </div>
 
               {/* WhatsApp Cordiale */}
-              {(proposte.whatsapp_2_cordiale || proposte.messaggio_2_cordiale) && (
-                <div className="border rounded-lg p-6 mb-4">
-                  <h3 className="font-bold text-lg mb-3">😊 Messaggio Cordiale</h3>
-                  <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
-                    {proposte.whatsapp_2_cordiale || proposte.messaggio_2_cordiale}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => approvaMessaggio('cordiale', (proposte.whatsapp_2_cordiale || proposte.messaggio_2_cordiale)!, 'whatsapp')}
-                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                    >
-                      ✅ Approva
-                    </button>
-                    <button
-                      onClick={() => copyToClipboard((proposte.whatsapp_2_cordiale || proposte.messaggio_2_cordiale)!)}
-                      className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                    >
-                      {copied ? '✅ Copiato!' : '📋 Copia'}
-                    </button>
-                    <button
-                      onClick={() => openWhatsApp(lead.telefono, (proposte.whatsapp_2_cordiale || proposte.messaggio_2_cordiale)!)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    >
-                      📱 WhatsApp
-                    </button>
-                  </div>
+              <div className="border rounded-lg p-6 mb-4">
+                <h3 className="font-bold text-lg mb-3">😊 Messaggio Cordiale</h3>
+                <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
+                  {messaggiWhatsApp.cordiale}
                 </div>
-              )}
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => approvaMessaggio('cordiale', messaggiWhatsApp.cordiale, 'whatsapp')}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    ✅ Approva
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(messaggiWhatsApp.cordiale)}
+                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                  >
+                    {copied ? '✅ Copiato!' : '📋 Copia'}
+                  </button>
+                  <button
+                    onClick={() => openWhatsApp(lead.telefono, messaggiWhatsApp.cordiale)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    📱 WhatsApp
+                  </button>
+                </div>
+              </div>
 
               {/* WhatsApp Urgenza */}
-              {(proposte.whatsapp_3_urgenza || proposte.messaggio_3_urgenza) && (
-                <div className="border rounded-lg p-6 mb-4">
-                  <h3 className="font-bold text-lg mb-3">⚡ Messaggio Urgenza</h3>
-                  <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
-                    {proposte.whatsapp_3_urgenza || proposte.messaggio_3_urgenza}
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => approvaMessaggio('urgenza', (proposte.whatsapp_3_urgenza || proposte.messaggio_3_urgenza)!, 'whatsapp')}
-                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                    >
-                      ✅ Approva
-                    </button>
-                    <button
-                      onClick={() => copyToClipboard((proposte.whatsapp_3_urgenza || proposte.messaggio_3_urgenza)!)}
-                      className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                    >
-                      {copied ? '✅ Copiato!' : '📋 Copia'}
-                    </button>
-                    <button
-                      onClick={() => openWhatsApp(lead.telefono, (proposte.whatsapp_3_urgenza || proposte.messaggio_3_urgenza)!)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    >
-                      📱 WhatsApp
-                    </button>
-                  </div>
+              <div className="border rounded-lg p-6 mb-4">
+                <h3 className="font-bold text-lg mb-3">⚡ Messaggio Urgenza</h3>
+                <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
+                  {messaggiWhatsApp.urgenza}
                 </div>
-              )}
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => approvaMessaggio('urgenza', messaggiWhatsApp.urgenza, 'whatsapp')}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    ✅ Approva
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(messaggiWhatsApp.urgenza)}
+                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                  >
+                    {copied ? '✅ Copiato!' : '📋 Copia'}
+                  </button>
+                  <button
+                    onClick={() => openWhatsApp(lead.telefono, messaggiWhatsApp.urgenza)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    📱 WhatsApp
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
           {/* SEZIONE EMAIL */}
-          {mostraEmail && email1 && (
+          {messaggiEmail && (
             <div>
               <h2 className="text-xl font-bold mb-4">📧 Messaggi Email</h2>
               
@@ -358,30 +356,30 @@ export default function LeadPage() {
                 <div className="mb-4">
                   <p className="font-semibold text-sm text-gray-600 mb-1">Oggetto:</p>
                   <div className="bg-blue-50 p-3 rounded">
-                    {email1.oggetto}
+                    {messaggiEmail.formale.oggetto}
                   </div>
                 </div>
                 <div className="mb-4">
                   <p className="font-semibold text-sm text-gray-600 mb-1">Corpo:</p>
                   <div className="bg-gray-50 p-4 rounded whitespace-pre-wrap">
-                    {email1.corpo}
+                    {messaggiEmail.formale.corpo}
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <button
-                    onClick={() => approvaMessaggio('formale', `${email1.oggetto}\n\n${email1.corpo}`, 'email')}
+                    onClick={() => approvaMessaggio('formale', `${messaggiEmail.formale.oggetto}\n\n${messaggiEmail.formale.corpo}`, 'email')}
                     className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
                   >
                     ✅ Approva
                   </button>
                   <button
-                    onClick={() => copyToClipboard(`${email1.oggetto}\n\n${email1.corpo}`)}
+                    onClick={() => copyToClipboard(`${messaggiEmail.formale.oggetto}\n\n${messaggiEmail.formale.corpo}`)}
                     className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
                   >
                     {copied ? '✅ Copiato!' : '📋 Copia'}
                   </button>
                   <button
-                    onClick={() => openEmail(lead.email, email1.oggetto, email1.corpo)}
+                    onClick={() => openEmail(lead.email, messaggiEmail.formale.oggetto, messaggiEmail.formale.corpo)}
                     className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                   >
                     📧 Email
@@ -390,82 +388,78 @@ export default function LeadPage() {
               </div>
 
               {/* Email Cordiale */}
-              {email2 && (
-                <div className="border rounded-lg p-6 mb-4">
-                  <h3 className="font-bold text-lg mb-3">😊 Email Cordiale</h3>
-                  <div className="mb-4">
-                    <p className="font-semibold text-sm text-gray-600 mb-1">Oggetto:</p>
-                    <div className="bg-blue-50 p-3 rounded">
-                      {email2.oggetto}
-                    </div>
-                  </div>
-                  <div className="mb-4">
-                    <p className="font-semibold text-sm text-gray-600 mb-1">Corpo:</p>
-                    <div className="bg-gray-50 p-4 rounded whitespace-pre-wrap">
-                      {email2.corpo}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => approvaMessaggio('cordiale', `${email2.oggetto}\n\n${email2.corpo}`, 'email')}
-                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                    >
-                      ✅ Approva
-                    </button>
-                    <button
-                      onClick={() => copyToClipboard(`${email2.oggetto}\n\n${email2.corpo}`)}
-                      className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                    >
-                      {copied ? '✅ Copiato!' : '📋 Copia'}
-                    </button>
-                    <button
-                      onClick={() => openEmail(lead.email, email2.oggetto, email2.corpo)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    >
-                      📧 Email
-                    </button>
+              <div className="border rounded-lg p-6 mb-4">
+                <h3 className="font-bold text-lg mb-3">😊 Email Cordiale</h3>
+                <div className="mb-4">
+                  <p className="font-semibold text-sm text-gray-600 mb-1">Oggetto:</p>
+                  <div className="bg-blue-50 p-3 rounded">
+                    {messaggiEmail.cordiale.oggetto}
                   </div>
                 </div>
-              )}
+                <div className="mb-4">
+                  <p className="font-semibold text-sm text-gray-600 mb-1">Corpo:</p>
+                  <div className="bg-gray-50 p-4 rounded whitespace-pre-wrap">
+                    {messaggiEmail.cordiale.corpo}
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => approvaMessaggio('cordiale', `${messaggiEmail.cordiale.oggetto}\n\n${messaggiEmail.cordiale.corpo}`, 'email')}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    ✅ Approva
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(`${messaggiEmail.cordiale.oggetto}\n\n${messaggiEmail.cordiale.corpo}`)}
+                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                  >
+                    {copied ? '✅ Copiato!' : '📋 Copia'}
+                  </button>
+                  <button
+                    onClick={() => openEmail(lead.email, messaggiEmail.cordiale.oggetto, messaggiEmail.cordiale.corpo)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    📧 Email
+                  </button>
+                </div>
+              </div>
 
               {/* Email Urgenza */}
-              {email3 && (
-                <div className="border rounded-lg p-6 mb-4">
-                  <h3 className="font-bold text-lg mb-3">⚡ Email Urgenza</h3>
-                  <div className="mb-4">
-                    <p className="font-semibold text-sm text-gray-600 mb-1">Oggetto:</p>
-                    <div className="bg-blue-50 p-3 rounded">
-                      {email3.oggetto}
-                    </div>
-                  </div>
-                  <div className="mb-4">
-                    <p className="font-semibold text-sm text-gray-600 mb-1">Corpo:</p>
-                    <div className="bg-gray-50 p-4 rounded whitespace-pre-wrap">
-                      {email3.corpo}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => approvaMessaggio('urgenza', `${email3.oggetto}\n\n${email3.corpo}`, 'email')}
-                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                    >
-                      ✅ Approva
-                    </button>
-                    <button
-                      onClick={() => copyToClipboard(`${email3.oggetto}\n\n${email3.corpo}`)}
-                      className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                    >
-                      {copied ? '✅ Copiato!' : '📋 Copia'}
-                    </button>
-                    <button
-                      onClick={() => openEmail(lead.email, email3.oggetto, email3.corpo)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    >
-                      📧 Email
-                    </button>
+              <div className="border rounded-lg p-6 mb-4">
+                <h3 className="font-bold text-lg mb-3">⚡ Email Urgenza</h3>
+                <div className="mb-4">
+                  <p className="font-semibold text-sm text-gray-600 mb-1">Oggetto:</p>
+                  <div className="bg-blue-50 p-3 rounded">
+                    {messaggiEmail.urgenza.oggetto}
                   </div>
                 </div>
-              )}
+                <div className="mb-4">
+                  <p className="font-semibold text-sm text-gray-600 mb-1">Corpo:</p>
+                  <div className="bg-gray-50 p-4 rounded whitespace-pre-wrap">
+                    {messaggiEmail.urgenza.corpo}
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => approvaMessaggio('urgenza', `${messaggiEmail.urgenza.oggetto}\n\n${messaggiEmail.urgenza.corpo}`, 'email')}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  >
+                    ✅ Approva
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(`${messaggiEmail.urgenza.oggetto}\n\n${messaggiEmail.urgenza.corpo}`)}
+                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                  >
+                    {copied ? '✅ Copiato!' : '📋 Copia'}
+                  </button>
+                  <button
+                    onClick={() => openEmail(lead.email, messaggiEmail.urgenza.oggetto, messaggiEmail.urgenza.corpo)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    📧 Email
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
