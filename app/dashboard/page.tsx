@@ -399,13 +399,56 @@ export default function Dashboard() {
                   </span>
                 </div>
 
-                <p className="text-sm text-slate-600 mt-2">📞 {lead.telefono}</p>
-                {lead.email && <p className="text-sm text-slate-600">📧 {lead.email}</p>}
-                {lead.interesse && <p className="text-sm text-slate-600">🎯 {lead.interesse}</p>}
-                {lead.canale_preferito && <p className="text-sm text-slate-600">📱 {lead.canale_preferito}</p>}
+                {/* INFO CONTATTO CON BOTTONI DIRETTI */}
+                <div className="mt-3 space-y-2">
+                  {/* TELEFONO */}
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-slate-600 flex-1">📞 {lead.telefono}</p>
+                    
+                      href={`tel:${lead.telefono}`}
+                      className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs
+                                 hover:bg-blue-700 transition-all duration-200 font-medium"
+                    >
+                      📞 Chiama
+                    </a>
+                    
+                      href={`https://wa.me/${lead.telefono.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs
+                                 hover:bg-green-700 transition-all duration-200 font-medium"
+                    >
+                      💬 WhatsApp
+                    </a>
+                  </div>
+
+                  {/* EMAIL */}
+                  {lead.email && (
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-slate-600 flex-1">📧 {lead.email}</p>
+                      
+                        href={`mailto:${lead.email}`}
+                        className="bg-slate-600 text-white px-3 py-1 rounded-lg text-xs
+                                   hover:bg-slate-700 transition-all duration-200 font-medium"
+                      >
+                        📧 Email
+                      </a>
+                    </div>
+                  )}
+
+                  {/* INTERESSE */}
+                  {lead.interesse && (
+                    <p className="text-sm text-slate-600">🎯 {lead.interesse}</p>
+                  )}
+
+                  {/* CANALE */}
+                  {lead.canale_preferito && (
+                    <p className="text-sm text-slate-600">📱 {lead.canale_preferito}</p>
+                  )}
+                </div>
                 
                 {/* Badge stato */}
-                <div className="mt-2">
+                <div className="mt-3">
                   <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
                     lead.stato === 'nuovo' ? 'bg-blue-100 text-blue-700' :
                     lead.stato === 'in_attesa_approvazione' ? 'bg-orange-100 text-orange-700' :
@@ -424,7 +467,7 @@ export default function Dashboard() {
                   onClick={() => router.push(`/lead/${lead.id}`)}
                   className="mt-4 bg-[#00243F] text-white px-4 py-2 rounded-lg
                              hover:bg-[#003D66] transition-all duration-200 text-sm font-medium
-                             shadow-sm w-full sm:w-auto"
+                             shadow-sm w-full"
                 >
                   👁️ Vedi messaggi
                 </button>
