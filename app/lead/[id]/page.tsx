@@ -175,7 +175,20 @@ export default function LeadPage() {
   let email2 = null
   let email3 = null
 
-  if (proposte?.email_1_formale) {
+  // Per canale "email", i messaggi sono in messaggio_1_formale invece di email_1_formale
+  const emailSource = canale === 'email' 
+    ? (proposte?.messaggio_1_formale ? 'messaggio' : null)
+    : (proposte?.email_1_formale ? 'email' : null)
+
+  if (emailSource === 'messaggio' && proposte?.messaggio_1_formale) {
+    try {
+      email1 = JSON.parse(proposte.messaggio_1_formale)
+      email2 = JSON.parse(proposte.messaggio_2_cordiale!)
+      email3 = JSON.parse(proposte.messaggio_3_urgenza!)
+    } catch (e) {
+      console.error('Errore parsing email da messaggio:', e)
+    }
+  } else if (emailSource === 'email' && proposte?.email_1_formale) {
     try {
       email1 = JSON.parse(proposte.email_1_formale)
       email2 = JSON.parse(proposte.email_2_cordiale!)
@@ -238,7 +251,7 @@ export default function LeadPage() {
           </div>
 
           {/* SEZIONE WHATSAPP */}
-          {mostraWhatsApp && (proposte.whatsapp_1_formale || proposte.messaggio_1_formale) && (
+          {mostraWhatsApp && (proposte.whatsapp_1_formale || proposte.messaggio_1_formale) && !email1 && (
             <div>
               <h2 className="text-xl font-bold mb-4">📱 Messaggi WhatsApp</h2>
               
