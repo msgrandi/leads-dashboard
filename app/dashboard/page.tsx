@@ -14,12 +14,7 @@ type Lead = {
   interesse: string
   stato: string
   created_at: string
-  canale_preferito?: string
-  note?: string
-  dettagli_claude?: string
-  contesto_aggiuntivo?: string
-  categoria?: string
-  [key: string]: any
+  canale_preferito: string
 }
 
 type FiltroStato = 'tutti' | 'nuovo' | 'in_attesa_approvazione' | 'approvato'
@@ -70,14 +65,84 @@ export default function Dashboard() {
     if (error) {
       console.error('Errore fetch:', error)
     } else {
-      console.log('TUTTI I LEAD:', data)
-      console.log('Lead con email:', data?.filter(l => l.canale_preferito === 'email'))
-      console.log('Lead con whatsapp:', data?.filter(l => l.canale_preferito === 'whatsapp'))
-      console.log('Lead con entrambi:', data?.filter(l => l.canale_preferito === 'entrambi'))
       setLeads(data || [])
     }
 
     setLoading(false)
+  }
+
+  // Export Excel
+  async function exportToExcel() {
+    try {
+      // Fetch TUTTI i lead con log delle attività
+      const { data: leadsData, error: leadsError } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (leadsError) throw leadsError
+
+      // Fetch log attività
+      const { data: logData } = await supabase
+        .from('log')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      // Prepara dati per Excel
+      const excelData = leadsData?.map(lead => {
+        // Trova ultimo log per questo lead
+        const ultimoLog = logData?.find(log => log.lead_id === lead.id)
+        
+        return {
+          'Nome Completo': lead.nome,
+          'Email': lead.email,
+          'Telefono': lead.telefono,
+          'Interesse': lead.interesse,
+          'Stato': lead.stato,
+          'Canale Preferito': lead.canale_preferito,
+          'Data Creazione': new Date(lead.created_at).toLocaleString('it-IT'),
+          'Data Ultima Azione': ultimoLog ? new Date(ultimoLog.created_at).toLocaleString('it-IT') : 'N/A',
+          'Tipo Ultima Attività': ultimoLog?.azione || 'N/A',
+          'Dettagli Attività': ultimoLog?.dettagli || 'N/A'
+        }
+      })
+
+      // Converti in CSV
+      if (!excelData || excelData.length === 0) {
+        alert('Nessun dato da esportare')
+        return
+      }
+
+      const headers = Object.keys(excelData[0])
+      const csvContent = [
+        headers.join(','),
+        ...excelData.map(row => 
+          headers.map(header => {
+            const value = row[header as keyof typeof row]
+            // Escape virgole e virgolette
+            return typeof value === 'string' && (value.includes(',') || value.includes('"'))
+              ? `"${value.replace(/"/g, '""')}"`
+              : value
+          }).join(',')
+        )
+      ].join('\n')
+
+      // Download file
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `HSE_Leads_Export_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      alert('✅ Export completato!')
+    } catch (error) {
+      console.error('Errore export:', error)
+      alert('❌ Errore durante l\'export')
+    }
   }
 
   // Logout
@@ -138,7 +203,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Bottoni: Nuovo Lead + Upload Excel + Impostazioni + Logout */}
+          {/* Bottoni: Nuovo Lead + Upload Excel + Export + Impostazioni + Logout */}
           <div className="mt-4 md:mt-0 flex gap-3 flex-wrap">
             <button
               onClick={() => setIsModalOpen(true)}
@@ -156,6 +221,15 @@ export default function Dashboard() {
                          flex items-center gap-2"
             >
               📤 Upload Excel
+            </button>
+            
+            <button
+              onClick={exportToExcel}
+              className="bg-blue-600 text-white px-5 py-2 rounded-lg
+                         hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm
+                         flex items-center gap-2"
+            >
+              📥 Esporta Excel
             </button>
             
             <button
