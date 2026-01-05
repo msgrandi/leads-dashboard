@@ -15,6 +15,11 @@ type Lead = {
   stato: string
   created_at: string
   canale_preferito?: string
+  note?: string
+  dettagli_claude?: string
+  contesto_aggiuntivo?: string
+  categoria?: string
+  [key: string]: any
 }
 
 type FiltroStato = 'tutti' | 'nuovo' | 'in_attesa_approvazione' | 'approvato'
