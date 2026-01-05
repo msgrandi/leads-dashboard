@@ -29,19 +29,16 @@ export default function Dashboard() {
   const [filtroAttivo, setFiltroAttivo] = useState<FiltroStato>('in_attesa_approvazione')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Controllo sessione
   useEffect(() => {
     checkSession()
   }, [])
 
-  // Ricarica quando cambia filtro
   useEffect(() => {
     if (!loading) {
       fetchLeads()
     }
   }, [filtroAttivo])
 
-  // Filtra in base alla ricerca
   useEffect(() => {
     if (!searchQuery.trim()) {
       setLeadsFiltered(leads)
@@ -67,14 +64,12 @@ export default function Dashboard() {
     fetchLeads()
   }
 
-  // Fetch leads con filtro
   async function fetchLeads() {
     let query = supabase
       .from('leads')
       .select('*')
       .order('created_at', { ascending: false })
 
-    // Applica filtro se non è "tutti"
     if (filtroAttivo !== 'tutti') {
       query = query.eq('stato', filtroAttivo)
     }
@@ -91,13 +86,10 @@ export default function Dashboard() {
     setLoading(false)
   }
 
-  // Export Excel
   async function exportToExcel() {
     try {
-      // Import dinamico di xlsx
       const XLSX = await import('xlsx')
       
-      // Fetch TUTTI i lead con log delle attività
       const { data: leadsData, error: leadsError } = await supabase
         .from('leads')
         .select('*')
@@ -105,15 +97,12 @@ export default function Dashboard() {
 
       if (leadsError) throw leadsError
 
-      // Fetch log attività
       const { data: logData } = await supabase
         .from('log')
         .select('*')
         .order('created_at', { ascending: false })
 
-      // Prepara dati per Excel
       const excelData = leadsData?.map(lead => {
-        // Trova ultimo log per questo lead
         const ultimoLog = logData?.find(log => log.lead_id === lead.id)
         
         return {
@@ -135,27 +124,16 @@ export default function Dashboard() {
         return
       }
 
-      // Crea workbook e worksheet
       const worksheet = XLSX.utils.json_to_sheet(excelData)
       const workbook = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads')
 
-      // Imposta larghezza colonne
       const columnWidths = [
-        { wch: 25 }, // Nome Completo
-        { wch: 30 }, // Email
-        { wch: 15 }, // Telefono
-        { wch: 30 }, // Interesse
-        { wch: 20 }, // Stato
-        { wch: 15 }, // Canale
-        { wch: 20 }, // Data Creazione
-        { wch: 20 }, // Data Ultima Azione
-        { wch: 25 }, // Tipo Attività
-        { wch: 40 }  // Dettagli
+        { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 30 }, { wch: 20 },
+        { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 40 }
       ]
       worksheet['!cols'] = columnWidths
 
-      // Download file Excel
       XLSX.writeFile(workbook, `HSE_Leads_Export_${new Date().toISOString().split('T')[0]}.xlsx`)
 
       alert('✅ Export Excel completato!')
@@ -165,13 +143,11 @@ export default function Dashboard() {
     }
   }
 
-  // Logout
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
   }
 
-  // Conta lead per stato
   const [stats, setStats] = useState({ nuovo: 0, in_attesa: 0, approvato: 0, totale: 0 })
 
   useEffect(() => {
@@ -196,12 +172,9 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      {/* HEADER */}
       <header className="bg-[#00243F] shadow">
         <div className="flex flex-col md:flex-row justify-between items-center py-4 px-6 md:px-8 max-w-7xl mx-auto">
-          {/* Logo + Titolo */}
           <div className="flex flex-col sm:flex-row items-center sm:items-center gap-4 md:gap-6 w-full md:w-auto">
-            {/* Logo su sfondo bianco */}
             <div className="bg-white p-3 rounded-xl shadow-md flex items-center justify-center flex-shrink-0">
               <img
                 src="/logo-mario-stefano-grandi.png"
@@ -211,8 +184,6 @@ export default function Dashboard() {
                 className="object-contain"
               />
             </div>
-
-            {/* Titolo */}
             <div className="flex flex-col justify-center text-center sm:text-left">
               <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight">
                 Mario Stefano Grandi
@@ -222,50 +193,34 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-
-          {/* Bottoni: Nuovo Lead + Upload Excel + Export + Impostazioni + Logout */}
           <div className="mt-4 md:mt-0 flex gap-3 flex-wrap">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="bg-white text-[#00243F] px-5 py-2 rounded-lg
-                         hover:bg-gray-100 transition-all duration-200 font-medium shadow-sm
-                         flex items-center gap-2"
+              className="bg-white text-[#00243F] px-5 py-2 rounded-lg hover:bg-gray-100 transition-all duration-200 font-medium shadow-sm flex items-center gap-2"
             >
               <span className="text-xl">+</span> Nuovo Lead
             </button>
-            
             <button
               onClick={() => setIsUploadModalOpen(true)}
-              className="bg-green-600 text-white px-5 py-2 rounded-lg
-                         hover:bg-green-700 transition-all duration-200 font-medium shadow-sm
-                         flex items-center gap-2"
+              className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-2"
             >
               📤 Upload Excel
             </button>
-            
             <button
               onClick={exportToExcel}
-              className="bg-blue-600 text-white px-5 py-2 rounded-lg
-                         hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm
-                         flex items-center gap-2"
+              className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-2"
             >
               📥 Esporta Excel
             </button>
-            
             <button
               onClick={() => router.push('/settings')}
-              className="border border-white px-5 py-2 rounded-lg
-                         text-sm text-white hover:bg-white hover:text-[#00243F]
-                         transition-all duration-200 font-medium shadow-sm"
+              className="border border-white px-5 py-2 rounded-lg text-sm text-white hover:bg-white hover:text-[#00243F] transition-all duration-200 font-medium shadow-sm"
             >
               ⚙️ Impostazioni
             </button>
-            
             <button
               onClick={handleLogout}
-              className="border border-white px-5 py-2 rounded-lg
-                         text-sm text-white hover:bg-white hover:text-[#00243F]
-                         transition-all duration-200 font-medium shadow-sm"
+              className="border border-white px-5 py-2 rounded-lg text-sm text-white hover:bg-white hover:text-[#00243F] transition-all duration-200 font-medium shadow-sm"
             >
               Logout →
             </button>
@@ -273,9 +228,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* CONTENT */}
       <main className="p-8 max-w-5xl mx-auto">
-        {/* STATISTICHE */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <p className="text-xs text-slate-500">Totali</p>
@@ -295,7 +248,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* BARRA RICERCA */}
         <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
           <div className="relative">
             <input
@@ -303,9 +255,7 @@ export default function Dashboard() {
               placeholder="🔍 Cerca per nome, email, telefono o interesse..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-3 pl-12 border border-slate-300 rounded-lg
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                         text-slate-700"
+              className="w-full px-4 py-3 pl-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700"
             />
             <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 text-xl">
               🔍
@@ -313,8 +263,7 @@ export default function Dashboard() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 
-                           text-slate-400 hover:text-slate-600 font-bold"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold"
               >
                 ✕
               </button>
@@ -327,7 +276,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* FILTRI */}
         <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
           <p className="text-sm font-medium text-slate-700 mb-3">Mostra:</p>
           <div className="flex flex-wrap gap-2">
@@ -374,7 +322,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* LISTA LEAD */}
         {leadsFiltered.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg">
             <p className="text-slate-500">
@@ -388,10 +335,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid gap-4">
             {leadsFiltered.map((lead) => (
-              <div
-                key={lead.id}
-                className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
-              >
+              <div key={lead.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <div className="flex justify-between items-center">
                   <h2 className="font-medium text-slate-800">{lead.nome}</h2>
                   <span className="text-xs text-slate-400">
@@ -399,15 +343,12 @@ export default function Dashboard() {
                   </span>
                 </div>
 
-                {/* INFO CONTATTO CON BOTTONI DIRETTI */}
                 <div className="mt-3 space-y-2">
-                  {/* TELEFONO */}
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-slate-600 flex-1">📞 {lead.telefono}</p>
                     
                       href={`tel:${lead.telefono}`}
-                      className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs
-                                 hover:bg-blue-700 transition-all duration-200 font-medium"
+                      className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition-all duration-200 font-medium"
                     >
                       📞 Chiama
                     </a>
@@ -415,39 +356,28 @@ export default function Dashboard() {
                       href={`https://wa.me/${lead.telefono.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs
-                                 hover:bg-green-700 transition-all duration-200 font-medium"
+                      className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-700 transition-all duration-200 font-medium"
                     >
                       💬 WhatsApp
                     </a>
                   </div>
 
-                  {/* EMAIL */}
                   {lead.email && (
                     <div className="flex items-center gap-2">
                       <p className="text-sm text-slate-600 flex-1">📧 {lead.email}</p>
                       
                         href={`mailto:${lead.email}`}
-                        className="bg-slate-600 text-white px-3 py-1 rounded-lg text-xs
-                                   hover:bg-slate-700 transition-all duration-200 font-medium"
+                        className="bg-slate-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-slate-700 transition-all duration-200 font-medium"
                       >
                         📧 Email
                       </a>
                     </div>
                   )}
 
-                  {/* INTERESSE */}
-                  {lead.interesse && (
-                    <p className="text-sm text-slate-600">🎯 {lead.interesse}</p>
-                  )}
-
-                  {/* CANALE */}
-                  {lead.canale_preferito && (
-                    <p className="text-sm text-slate-600">📱 {lead.canale_preferito}</p>
-                  )}
+                  {lead.interesse && <p className="text-sm text-slate-600">🎯 {lead.interesse}</p>}
+                  {lead.canale_preferito && <p className="text-sm text-slate-600">📱 {lead.canale_preferito}</p>}
                 </div>
                 
-                {/* Badge stato */}
                 <div className="mt-3">
                   <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
                     lead.stato === 'nuovo' ? 'bg-blue-100 text-blue-700' :
@@ -462,12 +392,9 @@ export default function Dashboard() {
                   </span>
                 </div>
 
-                {/* BOTTONE VEDI MESSAGGI */}
                 <button
                   onClick={() => router.push(`/lead/${lead.id}`)}
-                  className="mt-4 bg-[#00243F] text-white px-4 py-2 rounded-lg
-                             hover:bg-[#003D66] transition-all duration-200 text-sm font-medium
-                             shadow-sm w-full"
+                  className="mt-4 bg-[#00243F] text-white px-4 py-2 rounded-lg hover:bg-[#003D66] transition-all duration-200 text-sm font-medium shadow-sm w-full"
                 >
                   👁️ Vedi messaggi
                 </button>
@@ -477,7 +404,6 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Modal Nuovo Lead */}
       <NewLeadModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -487,7 +413,6 @@ export default function Dashboard() {
         }}
       />
 
-      {/* Modal Upload Excel */}
       <UploadExcelModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
