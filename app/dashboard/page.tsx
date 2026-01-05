@@ -14,6 +14,7 @@ type Lead = {
   interesse: string
   stato: string
   created_at: string
+  canale_preferito?: string
 }
 
 type FiltroStato = 'tutti' | 'nuovo' | 'in_attesa_approvazione' | 'approvato'
@@ -64,6 +65,10 @@ export default function Dashboard() {
     if (error) {
       console.error('Errore fetch:', error)
     } else {
+      console.log('TUTTI I LEAD:', data)
+      console.log('Lead con email:', data?.filter(l => l.canale_preferito === 'email'))
+      console.log('Lead con whatsapp:', data?.filter(l => l.canale_preferito === 'whatsapp'))
+      console.log('Lead con entrambi:', data?.filter(l => l.canale_preferito === 'entrambi'))
       setLeads(data || [])
     }
 
@@ -264,6 +269,7 @@ export default function Dashboard() {
                 <p className="text-sm text-slate-600 mt-2">📞 {lead.telefono}</p>
                 {lead.email && <p className="text-sm text-slate-600">📧 {lead.email}</p>}
                 {lead.interesse && <p className="text-sm text-slate-600">🎯 {lead.interesse}</p>}
+                {lead.canale_preferito && <p className="text-sm text-slate-600">📱 {lead.canale_preferito}</p>}
                 
                 {/* Badge stato */}
                 <div className="mt-2">
