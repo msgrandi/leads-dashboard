@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [filtroAttivo, setFiltroAttivo] = useState<FiltroStato>('in_attesa_approvazione')
   const [searchQuery, setSearchQuery] = useState('')
+  const [stats, setStats] = useState({ nuovo: 0, in_attesa: 0, approvato: 0, totale: 0 })
 
   useEffect(() => {
     checkSession()
@@ -44,7 +45,6 @@ export default function Dashboard() {
       setLeadsFiltered(leads)
       return
     }
-
     const query = searchQuery.toLowerCase()
     const filtered = leads.filter(lead => 
       lead.nome.toLowerCase().includes(query) ||
@@ -54,6 +54,19 @@ export default function Dashboard() {
     )
     setLeadsFiltered(filtered)
   }, [searchQuery, leads])
+
+  useEffect(() => {
+    async function fetchStats() {
+      const { data } = await supabase.from('leads').select('stato')
+      if (data) {
+        const nuovo = data.filter(l => l.stato === 'nuovo').length
+        const in_attesa = data.filter(l => l.stato === 'in_attesa_approvazione').length
+        const approvato = data.filter(l => l.stato === 'approvato').length
+        setStats({ nuovo, in_attesa, approvato, totale: data.length })
+      }
+    }
+    fetchStats()
+  }, [leads])
 
   async function checkSession() {
     const { data } = await supabase.auth.getSession()
@@ -65,46 +78,28 @@ export default function Dashboard() {
   }
 
   async function fetchLeads() {
-    let query = supabase
-      .from('leads')
-      .select('*')
-      .order('created_at', { ascending: false })
-
+    let query = supabase.from('leads').select('*').order('created_at', { ascending: false })
     if (filtroAttivo !== 'tutti') {
       query = query.eq('stato', filtroAttivo)
     }
-
     const { data, error } = await query
-
     if (error) {
       console.error('Errore fetch:', error)
     } else {
       setLeads(data || [])
       setLeadsFiltered(data || [])
     }
-
     setLoading(false)
   }
 
   async function exportToExcel() {
     try {
       const XLSX = await import('xlsx')
-      
-      const { data: leadsData, error: leadsError } = await supabase
-        .from('leads')
-        .select('*')
-        .order('created_at', { ascending: false })
-
+      const { data: leadsData, error: leadsError } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
       if (leadsError) throw leadsError
-
-      const { data: logData } = await supabase
-        .from('log')
-        .select('*')
-        .order('created_at', { ascending: false })
-
+      const { data: logData } = await supabase.from('log').select('*').order('created_at', { ascending: false })
       const excelData = leadsData?.map(lead => {
         const ultimoLog = logData?.find(log => log.lead_id === lead.id)
-        
         return {
           'Nome Completo': lead.nome,
           'Email': lead.email,
@@ -118,24 +113,15 @@ export default function Dashboard() {
           'Dettagli Attività': ultimoLog?.dettagli || 'N/A'
         }
       })
-
       if (!excelData || excelData.length === 0) {
         alert('Nessun dato da esportare')
         return
       }
-
       const worksheet = XLSX.utils.json_to_sheet(excelData)
       const workbook = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads')
-
-      const columnWidths = [
-        { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 30 }, { wch: 20 },
-        { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 40 }
-      ]
-      worksheet['!cols'] = columnWidths
-
+      worksheet['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 40 }]
       XLSX.writeFile(workbook, `HSE_Leads_Export_${new Date().toISOString().split('T')[0]}.xlsx`)
-
       alert('✅ Export Excel completato!')
     } catch (error) {
       console.error('Errore export:', error)
@@ -148,24 +134,6 @@ export default function Dashboard() {
     router.push('/login')
   }
 
-  const [stats, setStats] = useState({ nuovo: 0, in_attesa: 0, approvato: 0, totale: 0 })
-
-  useEffect(() => {
-    async function fetchStats() {
-      const { data } = await supabase
-        .from('leads')
-        .select('stato')
-
-      if (data) {
-        const nuovo = data.filter(l => l.stato === 'nuovo').length
-        const in_attesa = data.filter(l => l.stato === 'in_attesa_approvazione').length
-        const approvato = data.filter(l => l.stato === 'approvato').length
-        setStats({ nuovo, in_attesa, approvato, totale: data.length })
-      }
-    }
-    fetchStats()
-  }, [leads])
-
   if (loading) {
     return <div className="p-8">Caricamento...</div>
   }
@@ -176,52 +144,27 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row justify-between items-center py-4 px-6 md:px-8 max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row items-center sm:items-center gap-4 md:gap-6 w-full md:w-auto">
             <div className="bg-white p-3 rounded-xl shadow-md flex items-center justify-center flex-shrink-0">
-              <img
-                src="/logo-mario-stefano-grandi.png"
-                alt="Mario Stefano Grandi"
-                width={100}
-                height={100}
-                className="object-contain"
-              />
+              <img src="/logo-mario-stefano-grandi.png" alt="Mario Stefano Grandi" width={100} height={100} className="object-contain" />
             </div>
             <div className="flex flex-col justify-center text-center sm:text-left">
-              <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight">
-                Mario Stefano Grandi
-              </h1>
-              <p className="text-slate-300 text-sm sm:text-base mt-1">
-                HSE Leads Dashboard – Gestione professionale dei contatti
-              </p>
+              <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight">Mario Stefano Grandi</h1>
+              <p className="text-slate-300 text-sm sm:text-base mt-1">HSE Leads Dashboard – Gestione professionale dei contatti</p>
             </div>
           </div>
           <div className="mt-4 md:mt-0 flex gap-3 flex-wrap">
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-white text-[#00243F] px-5 py-2 rounded-lg hover:bg-gray-100 transition-all duration-200 font-medium shadow-sm flex items-center gap-2"
-            >
+            <button onClick={() => setIsModalOpen(true)} className="bg-white text-[#00243F] px-5 py-2 rounded-lg hover:bg-gray-100 transition-all duration-200 font-medium shadow-sm flex items-center gap-2">
               <span className="text-xl">+</span> Nuovo Lead
             </button>
-            <button
-              onClick={() => setIsUploadModalOpen(true)}
-              className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-2"
-            >
+            <button onClick={() => setIsUploadModalOpen(true)} className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-2">
               📤 Upload Excel
             </button>
-            <button
-              onClick={exportToExcel}
-              className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-2"
-            >
+            <button onClick={exportToExcel} className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 font-medium shadow-sm flex items-center gap-2">
               📥 Esporta Excel
             </button>
-            <button
-              onClick={() => router.push('/settings')}
-              className="border border-white px-5 py-2 rounded-lg text-sm text-white hover:bg-white hover:text-[#00243F] transition-all duration-200 font-medium shadow-sm"
-            >
+            <button onClick={() => router.push('/settings')} className="border border-white px-5 py-2 rounded-lg text-sm text-white hover:bg-white hover:text-[#00243F] transition-all duration-200 font-medium shadow-sm">
               ⚙️ Impostazioni
             </button>
-            <button
-              onClick={handleLogout}
-              className="border border-white px-5 py-2 rounded-lg text-sm text-white hover:bg-white hover:text-[#00243F] transition-all duration-200 font-medium shadow-sm"
-            >
+            <button onClick={handleLogout} className="border border-white px-5 py-2 rounded-lg text-sm text-white hover:bg-white hover:text-[#00243F] transition-all duration-200 font-medium shadow-sm">
               Logout →
             </button>
           </div>
@@ -250,73 +193,30 @@ export default function Dashboard() {
 
         <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
           <div className="relative">
-            <input
-              type="text"
-              placeholder="🔍 Cerca per nome, email, telefono o interesse..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-3 pl-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700"
-            />
-            <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 text-xl">
-              🔍
-            </span>
+            <input type="text" placeholder="🔍 Cerca per nome, email, telefono o interesse..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full px-4 py-3 pl-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-700" />
+            <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 text-xl">🔍</span>
             {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold"
-              >
-                ✕
-              </button>
+              <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold">✕</button>
             )}
           </div>
           {searchQuery && (
-            <p className="text-sm text-slate-500 mt-2">
-              {leadsFiltered.length} risultat{leadsFiltered.length === 1 ? 'o' : 'i'} trovat{leadsFiltered.length === 1 ? 'o' : 'i'}
-            </p>
+            <p className="text-sm text-slate-500 mt-2">{leadsFiltered.length} risultat{leadsFiltered.length === 1 ? 'o' : 'i'} trovat{leadsFiltered.length === 1 ? 'o' : 'i'}</p>
           )}
         </div>
 
         <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
           <p className="text-sm font-medium text-slate-700 mb-3">Mostra:</p>
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFiltroAttivo('in_attesa_approvazione')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                filtroAttivo === 'in_attesa_approvazione'
-                  ? 'bg-orange-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
+            <button onClick={() => setFiltroAttivo('in_attesa_approvazione')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAttivo === 'in_attesa_approvazione' ? 'bg-orange-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               🟠 In Attesa ({stats.in_attesa})
             </button>
-            <button
-              onClick={() => setFiltroAttivo('nuovo')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                filtroAttivo === 'nuovo'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
+            <button onClick={() => setFiltroAttivo('nuovo')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAttivo === 'nuovo' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               🔵 Nuovi ({stats.nuovo})
             </button>
-            <button
-              onClick={() => setFiltroAttivo('approvato')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                filtroAttivo === 'approvato'
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
+            <button onClick={() => setFiltroAttivo('approvato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAttivo === 'approvato' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               ✅ Approvati ({stats.approvato})
             </button>
-            <button
-              onClick={() => setFiltroAttivo('tutti')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                filtroAttivo === 'tutti'
-                  ? 'bg-slate-700 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
+            <button onClick={() => setFiltroAttivo('tutti')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAttivo === 'tutti' ? 'bg-slate-700 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               📊 Tutti ({stats.totale})
             </button>
           </div>
@@ -325,11 +225,7 @@ export default function Dashboard() {
         {leadsFiltered.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg">
             <p className="text-slate-500">
-              {searchQuery 
-                ? `Nessun risultato per "${searchQuery}"`
-                : filtroAttivo === 'tutti' 
-                  ? 'Nessun lead presente' 
-                  : `Nessun lead con stato "${filtroAttivo}"`}
+              {searchQuery ? `Nessun risultato per "${searchQuery}"` : filtroAttivo === 'tutti' ? 'Nessun lead presente' : `Nessun lead con stato "${filtroAttivo}"`}
             </p>
           </div>
         ) : (
@@ -338,64 +234,35 @@ export default function Dashboard() {
               <div key={lead.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <div className="flex justify-between items-center">
                   <h2 className="font-medium text-slate-800">{lead.nome}</h2>
-                  <span className="text-xs text-slate-400">
-                    {new Date(lead.created_at).toLocaleString()}
-                  </span>
+                  <span className="text-xs text-slate-400">{new Date(lead.created_at).toLocaleString()}</span>
                 </div>
-
                 <div className="mt-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-slate-600 flex-1">📞 {lead.telefono}</p>
-                    
-                      href={`tel:${lead.telefono}`}
-                      className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition-all duration-200 font-medium"
-                    >
+                    <a href={`tel:${lead.telefono}`} className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition-all duration-200 font-medium">
                       📞 Chiama
                     </a>
-                    
-                      href={`https://wa.me/${lead.telefono.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-700 transition-all duration-200 font-medium"
-                    >
+                    <a href={`https://wa.me/${lead.telefono.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-700 transition-all duration-200 font-medium">
                       💬 WhatsApp
                     </a>
                   </div>
-
                   {lead.email && (
                     <div className="flex items-center gap-2">
                       <p className="text-sm text-slate-600 flex-1">📧 {lead.email}</p>
-                      
-                        href={`mailto:${lead.email}`}
-                        className="bg-slate-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-slate-700 transition-all duration-200 font-medium"
-                      >
+                      <a href={`mailto:${lead.email}`} className="bg-slate-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-slate-700 transition-all duration-200 font-medium">
                         📧 Email
                       </a>
                     </div>
                   )}
-
                   {lead.interesse && <p className="text-sm text-slate-600">🎯 {lead.interesse}</p>}
                   {lead.canale_preferito && <p className="text-sm text-slate-600">📱 {lead.canale_preferito}</p>}
                 </div>
-                
                 <div className="mt-3">
-                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                    lead.stato === 'nuovo' ? 'bg-blue-100 text-blue-700' :
-                    lead.stato === 'in_attesa_approvazione' ? 'bg-orange-100 text-orange-700' :
-                    lead.stato === 'approvato' ? 'bg-green-100 text-green-700' :
-                    'bg-slate-100 text-slate-700'
-                  }`}>
-                    {lead.stato === 'nuovo' ? '🔵 Nuovo' :
-                     lead.stato === 'in_attesa_approvazione' ? '🟠 In Attesa' :
-                     lead.stato === 'approvato' ? '✅ Approvato' :
-                     lead.stato}
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${lead.stato === 'nuovo' ? 'bg-blue-100 text-blue-700' : lead.stato === 'in_attesa_approvazione' ? 'bg-orange-100 text-orange-700' : lead.stato === 'approvato' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>
+                    {lead.stato === 'nuovo' ? '🔵 Nuovo' : lead.stato === 'in_attesa_approvazione' ? '🟠 In Attesa' : lead.stato === 'approvato' ? '✅ Approvato' : lead.stato}
                   </span>
                 </div>
-
-                <button
-                  onClick={() => router.push(`/lead/${lead.id}`)}
-                  className="mt-4 bg-[#00243F] text-white px-4 py-2 rounded-lg hover:bg-[#003D66] transition-all duration-200 text-sm font-medium shadow-sm w-full"
-                >
+                <button onClick={() => router.push(`/lead/${lead.id}`)} className="mt-4 bg-[#00243F] text-white px-4 py-2 rounded-lg hover:bg-[#003D66] transition-all duration-200 text-sm font-medium shadow-sm w-full">
                   👁️ Vedi messaggi
                 </button>
               </div>
@@ -404,23 +271,8 @@ export default function Dashboard() {
         )}
       </main>
 
-      <NewLeadModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={() => {
-          fetchLeads()
-          setIsModalOpen(false)
-        }}
-      />
-
-      <UploadExcelModal
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onSuccess={() => {
-          fetchLeads()
-          setIsUploadModalOpen(false)
-        }}
-      />
+      <NewLeadModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={() => { fetchLeads(); setIsModalOpen(false); }} />
+      <UploadExcelModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} onSuccess={() => { fetchLeads(); setIsUploadModalOpen(false); }} />
     </div>
   )
 }
