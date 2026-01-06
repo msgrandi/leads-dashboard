@@ -34,6 +34,7 @@ type Template = {
   template: string
   descrizione: string
   campi_extra?: Array<{name: string, label: string, placeholder: string}>
+  supporta_allegato?: boolean
 }
 
 export default function LeadDetail() {
@@ -55,6 +56,11 @@ export default function LeadDetail() {
   const [showFormModal, setShowFormModal] = useState(false)
   const [templatePreview, setTemplatePreview] = useState('')
   const [extraFields, setExtraFields] = useState<Record<string, string>>({})
+  
+  // Upload allegato
+  const [allegatoFile, setAllegatoFile] = useState<File | null>(null)
+  const [allegatoUrl, setAllegatoUrl] = useState<string>('')
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     if (leadId) {
@@ -91,7 +97,43 @@ export default function LeadDetail() {
     setTemplates(data || [])
   }
 
-  function personalizeTemplate(template: string, lead: Lead, extraData: Record<string, string> = {}) {
+  async function handleFileUpload(file: File) {
+    if (!file) return null
+
+    setUploading(true)
+    try {
+      // Nome file unico con timestamp
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+      const filePath = `${leadId}/${fileName}`
+
+      // Upload file
+      const { error: uploadError } = await supabase.storage
+        .from('template-allegati')
+        .upload(filePath, file)
+
+      if (uploadError) {
+        console.error('Errore upload:', uploadError)
+        alert('❌ Errore durante upload file')
+        return null
+      }
+
+      // Ottieni URL pubblico
+      const { data } = supabase.storage
+        .from('template-allegati')
+        .getPublicUrl(filePath)
+
+      setUploading(false)
+      return data.publicUrl
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('❌ Errore durante upload')
+      setUploading(false)
+      return null
+    }
+  }
+
+  function personalizeTemplate(template: string, lead: Lead, extraData: Record<string, string> = {}, fileUrl?: string) {
     let result = template
       .replace(/{{nome}}/g, lead.nome)
       .replace(/{{interesse}}/g, lead.interesse)
@@ -103,6 +145,11 @@ export default function LeadDetail() {
       const regex = new RegExp(`{{${key}}}`, 'g')
       result = result.replace(regex, extraData[key])
     })
+
+    // Aggiungi link allegato se presente
+    if (fileUrl) {
+      result += `\n\n📎 *Allegato:* ${fileUrl}`
+    }
     
     return result
   }
@@ -110,10 +157,12 @@ export default function LeadDetail() {
   function viewTemplate(template: Template) {
     if (!lead) return
     
-    // Se ha campi extra, mostra form prima
-    if (template.campi_extra && template.campi_extra.length > 0) {
+    // Se ha campi extra o supporta allegati, mostra form prima
+    if ((template.campi_extra && template.campi_extra.length > 0) || template.supporta_allegato) {
       setSelectedTemplate(template)
       setExtraFields({})
+      setAllegatoFile(null)
+      setAllegatoUrl('')
       setShowFormModal(true)
     } else {
       // Altrimenti mostra direttamente anteprima
@@ -124,7 +173,7 @@ export default function LeadDetail() {
     }
   }
 
-  function handleFormSubmit() {
+  async function handleFormSubmit() {
     if (!selectedTemplate || !lead) return
     
     // Verifica che tutti i campi siano compilati
@@ -136,10 +185,17 @@ export default function LeadDetail() {
       alert('⚠️ Compila tutti i campi richiesti!')
       return
     }
+
+    // Upload file se presente
+    let fileUrl = allegatoUrl
+    if (allegatoFile && !fileUrl) {
+      fileUrl = await handleFileUpload(allegatoFile) || ''
+    }
     
     // Genera anteprima con i dati del form
-    const personalized = personalizeTemplate(selectedTemplate.template, lead, extraFields)
+    const personalized = personalizeTemplate(selectedTemplate.template, lead, extraFields, fileUrl)
     setTemplatePreview(personalized)
+    setAllegatoUrl(fileUrl)
     setShowFormModal(false)
     setShowTemplateModal(true)
   }
@@ -155,13 +211,15 @@ export default function LeadDetail() {
     logTemplateUsage(template.id)
     setShowTemplateModal(false)
     setExtraFields({})
+    setAllegatoFile(null)
+    setAllegatoUrl('')
   }
 
   async function logTemplateUsage(templateId: number) {
     await supabase.from('log').insert({
       lead_id: leadId,
       azione: 'template_whatsapp_utilizzato',
-      dettagli: `Template ID: ${templateId}`
+      dettagli: `Template ID: ${templateId}${allegatoUrl ? ' - Con allegato' : ''}`
     })
   }
 
@@ -331,7 +389,10 @@ export default function LeadDetail() {
                 <div key={template.id} className="bg-white rounded-lg p-4 border border-slate-200">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
-                      <h3 className="font-medium text-slate-800">{template.nome}</h3>
+                      <h3 className="font-medium text-slate-800">
+                        {template.nome}
+                        {template.supporta_allegato && <span className="ml-2 text-xs">📎</span>}
+                      </h3>
                       <p className="text-xs text-slate-500 mt-1">{template.descrizione}</p>
                     </div>
                     <span className={`px-2 py-1 rounded text-xs font-medium ml-2 flex-shrink-0 ${
@@ -464,7 +525,7 @@ export default function LeadDetail() {
           </div>
         )}
 
-        {/* MODAL FORM CAMPI EXTRA */}
+        {/* MODAL FORM CAMPI EXTRA + UPLOAD */}
         {showFormModal && selectedTemplate && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
@@ -472,6 +533,7 @@ export default function LeadDetail() {
               <p className="text-sm text-slate-500 mb-4">Compila i campi per personalizzare il template</p>
 
               <div className="space-y-4">
+                {/* CAMPI EXTRA */}
                 {selectedTemplate.campi_extra?.map((field) => (
                   <div key={field.name}>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -486,6 +548,45 @@ export default function LeadDetail() {
                     />
                   </div>
                 ))}
+
+                {/* UPLOAD ALLEGATO */}
+                {selectedTemplate.supporta_allegato && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      📎 Allegato (opzionale)
+                    </label>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.size > 10 * 1024 * 1024) {
+                            alert('⚠️ File troppo grande! Max 10MB')
+                            e.target.value = ''
+                            return
+                          }
+                          setAllegatoFile(file)
+                        }
+                      }}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Formati: PDF, JPG, PNG - Max 10MB
+                    </p>
+                    {allegatoFile && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
+                        <span>✅ {allegatoFile.name}</span>
+                        <button
+                          onClick={() => setAllegatoFile(null)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 mt-6">
@@ -493,16 +594,20 @@ export default function LeadDetail() {
                   onClick={() => {
                     setShowFormModal(false)
                     setExtraFields({})
+                    setAllegatoFile(null)
+                    setAllegatoUrl('')
                   }}
-                  className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium"
+                  disabled={uploading}
+                  className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium disabled:opacity-50"
                 >
                   Annulla
                 </button>
                 <button
                   onClick={handleFormSubmit}
-                  className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all font-medium"
+                  disabled={uploading}
+                  className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all font-medium disabled:opacity-50"
                 >
-                  📝 Continua
+                  {uploading ? '⏳ Upload...' : '📝 Continua'}
                 </button>
               </div>
             </div>
@@ -556,6 +661,8 @@ export default function LeadDetail() {
                   onClick={() => {
                     setShowTemplateModal(false)
                     setExtraFields({})
+                    setAllegatoFile(null)
+                    setAllegatoUrl('')
                   }}
                   className="text-slate-400 hover:text-slate-600 text-2xl font-bold"
                 >
@@ -572,11 +679,22 @@ export default function LeadDetail() {
                 </p>
               </div>
 
+              {allegatoUrl && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-xs text-blue-700 font-medium mb-1">📎 Allegato incluso nel messaggio</p>
+                  <a href={allegatoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                    {allegatoUrl}
+                  </a>
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <button
                   onClick={() => {
                     setShowTemplateModal(false)
                     setExtraFields({})
+                    setAllegatoFile(null)
+                    setAllegatoUrl('')
                   }}
                   className="flex-1 bg-slate-200 text-slate-700 px-4 py-3 rounded-lg hover:bg-slate-300 transition-all font-medium"
                 >
