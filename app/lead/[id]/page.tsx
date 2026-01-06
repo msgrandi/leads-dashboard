@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 type Lead = {
   id: number
@@ -10,139 +10,221 @@ type Lead = {
   telefono: string
   email: string
   interesse: string
-  note: string
   stato: string
   canale_preferito: string
-  contesto_aggiuntivo: string
+  contesto_aggiuntivo?: string
 }
 
 type Proposte = {
-  messaggio_1_formale: string | null
-  messaggio_2_cordiale: string | null
-  messaggio_3_urgenza: string | null
-  whatsapp_1_formale: string | null
-  whatsapp_2_cordiale: string | null
-  whatsapp_3_urgenza: string | null
-  email_1_formale: string | null
-  email_2_cordiale: string | null
-  email_3_urgenza: string | null
+  messaggio_1_formale?: string
+  messaggio_2_cordiale?: string
+  messaggio_3_urgenza?: string
+  email_1_formale?: string
+  email_2_cordiale?: string
+  email_3_urgenza?: string
+  whatsapp_1_formale?: string
+  whatsapp_2_cordiale?: string
+  whatsapp_3_urgenza?: string
 }
 
-export default function LeadPage() {
-  const params = useParams()
+type Template = {
+  id: number
+  nome: string
+  categoria: string
+  template: string
+  descrizione: string
+  campi_extra?: Array<{name: string, label: string, placeholder: string}>
+}
+
+export default function LeadDetail({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [lead, setLead] = useState<Lead | null>(null)
   const [proposte, setProposte] = useState<Proposte | null>(null)
   const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
-  const [showRegeneraModal, setShowRegeneraModal] = useState(false)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [regenerating, setRegenerating] = useState(false)
+  
+  // Template WhatsApp
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [showFormModal, setShowFormModal] = useState(false)
+  const [templatePreview, setTemplatePreview] = useState('')
+  const [extraFields, setExtraFields] = useState<Record<string, string>>({})
 
   useEffect(() => {
     fetchLead()
-  }, [])
+    fetchTemplates()
+  }, [params.id])
 
   async function fetchLead() {
-    const leadId = params.id
-
     const { data: leadData } = await supabase
       .from('leads')
       .select('*')
-      .eq('id', leadId)
+      .eq('id', params.id)
       .single()
 
     const { data: proposteData } = await supabase
       .from('proposte_messaggi')
       .select('*')
-      .eq('lead_id', leadId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+      .eq('lead_id', params.id)
+      .single()
 
     setLead(leadData)
     setProposte(proposteData)
     setLoading(false)
   }
 
-  async function approvaMessaggio(tipo: string, messaggio: string, canale: string) {
-    if (!lead) return
-
-    await supabase
-      .from('leads')
-      .update({
-        stato: 'approvato',
-        messaggio_inviato: messaggio,
-        messaggio_tipo: tipo,
-        data_invio: new Date().toISOString()
-      })
-      .eq('id', lead.id)
-
-    await supabase
-      .from('log')
-      .insert({
-        lead_id: lead.id,
-        azione: 'messaggio_approvato',
-        dettagli: `Approvato messaggio ${tipo} (${canale})`
-      })
-
-    alert('Messaggio approvato!')
-    router.push('/dashboard')
+  async function fetchTemplates() {
+    const { data } = await supabase
+      .from('whatsapp_templates')
+      .select('*')
+      .eq('attivo', true)
+      .order('categoria, nome')
+    
+    setTemplates(data || [])
   }
 
-  async function handleRigenera() {
+  function personalizeTemplate(template: string, lead: Lead, extraData: Record<string, string> = {}) {
+    let result = template
+      .replace(/{{nome}}/g, lead.nome)
+      .replace(/{{interesse}}/g, lead.interesse)
+      .replace(/{{telefono}}/g, lead.telefono)
+      .replace(/{{email}}/g, lead.email || '')
+    
+    // Sostituisci campi extra
+    Object.keys(extraData).forEach(key => {
+      const regex = new RegExp(`{{${key}}}`, 'g')
+      result = result.replace(regex, extraData[key])
+    })
+    
+    return result
+  }
+
+  function viewTemplate(template: Template) {
     if (!lead) return
     
-    setRegenerating(true)
-
-    try {
-      const { error } = await supabase
-        .from('leads')
-        .update({
-          stato: 'nuovo',
-          feedback_rigenerazione: feedback || 'Rigenerazione richiesta senza feedback specifico'
-        })
-        .eq('id', lead.id)
-
-      if (error) throw error
-
-      await supabase
-        .from('log')
-        .insert({
-          lead_id: lead.id,
-          azione: 'rigenerazione_richiesta',
-          dettagli: `Feedback: ${feedback || 'Nessun feedback'}`
-        })
-
-      alert('✅ Messaggi in rigenerazione! n8n genererà nuovi messaggi tra pochi minuti.')
-      
-      setShowRegeneraModal(false)
-      setFeedback('')
-      router.push('/dashboard')
-    } catch (error) {
-      console.error('Errore rigenerazione:', error)
-      alert('❌ Errore durante la rigenerazione')
-    } finally {
-      setRegenerating(false)
+    // Se ha campi extra, mostra form prima
+    if (template.campi_extra && template.campi_extra.length > 0) {
+      setSelectedTemplate(template)
+      setExtraFields({})
+      setShowFormModal(true)
+    } else {
+      // Altrimenti mostra direttamente anteprima
+      const personalized = personalizeTemplate(template.template, lead)
+      setSelectedTemplate(template)
+      setTemplatePreview(personalized)
+      setShowTemplateModal(true)
     }
   }
 
-  function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  function handleFormSubmit() {
+    if (!selectedTemplate || !lead) return
+    
+    // Verifica che tutti i campi siano compilati
+    const missingFields = selectedTemplate.campi_extra?.filter(
+      field => !extraFields[field.name]?.trim()
+    )
+    
+    if (missingFields && missingFields.length > 0) {
+      alert('⚠️ Compila tutti i campi richiesti!')
+      return
+    }
+    
+    // Genera anteprima con i dati del form
+    const personalized = personalizeTemplate(selectedTemplate.template, lead, extraFields)
+    setTemplatePreview(personalized)
+    setShowFormModal(false)
+    setShowTemplateModal(true)
   }
 
-  function openWhatsApp(telefono: string, messaggio: string) {
-    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(messaggio)}`
-    window.open(url, '_blank')
+  function useTemplate(template: Template) {
+    if (!lead) return
+    const encoded = encodeURIComponent(templatePreview)
+    const whatsappUrl = `https://wa.me/${lead.telefono.replace(/\D/g, '')}?text=${encoded}`
+    
+    window.open(whatsappUrl, '_blank')
+    
+    // Log uso template
+    logTemplateUsage(template.id)
+    setShowTemplateModal(false)
+    setExtraFields({})
   }
 
-  function openEmail(email: string, oggetto: string, corpo: string) {
-    const subject = encodeURIComponent(oggetto)
-    const body = encodeURIComponent(corpo)
-    const url = `mailto:${email}?subject=${subject}&body=${body}`
-    window.open(url, '_blank')
+  async function logTemplateUsage(templateId: number) {
+    await supabase.from('log').insert({
+      lead_id: params.id,
+      azione: 'template_whatsapp_utilizzato',
+      dettagli: `Template ID: ${templateId}`
+    })
+  }
+
+  async function approvaMessaggio(tipo: string, testo: string) {
+    await supabase.from('log').insert({
+      lead_id: params.id,
+      azione: 'messaggio_approvato',
+      dettagli: `Tipo: ${tipo}`
+    })
+
+    await supabase
+      .from('leads')
+      .update({ stato: 'approvato' })
+      .eq('id', params.id)
+
+    alert('✅ Messaggio approvato!')
+    fetchLead()
+  }
+
+  function copiaMessaggio(testo: string) {
+    navigator.clipboard.writeText(testo)
+    alert('✅ Messaggio copiato!')
+  }
+
+  function apriWhatsApp(messaggio: string) {
+    if (!lead) return
+    const encoded = encodeURIComponent(messaggio)
+    window.open(`https://wa.me/${lead.telefono.replace(/\D/g, '')}?text=${encoded}`, '_blank')
+  }
+
+  function apriEmail(oggetto: string, corpo: string) {
+    if (!lead) return
+    const mailtoLink = `mailto:${lead.email}?subject=${encodeURIComponent(oggetto)}&body=${encodeURIComponent(corpo)}`
+    window.open(mailtoLink, '_blank')
+  }
+
+  async function rigeneraConFeedback() {
+    if (!feedback.trim()) {
+      alert('⚠️ Inserisci un feedback!')
+      return
+    }
+
+    setRegenerating(true)
+
+    try {
+      const response = await fetch('/api/rigenera-messaggi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: params.id,
+          feedback: feedback
+        })
+      })
+
+      if (response.ok) {
+        alert('✅ Messaggi rigenerati!')
+        setShowFeedbackModal(false)
+        setFeedback('')
+        fetchLead()
+      } else {
+        alert('❌ Errore nella rigenerazione')
+      }
+    } catch (error) {
+      console.error('Errore:', error)
+      alert('❌ Errore nella rigenerazione')
+    }
+
+    setRegenerating(false)
   }
 
   if (loading) {
@@ -154,13 +236,10 @@ export default function LeadPage() {
   }
 
   const canale = lead.canale_preferito || 'whatsapp'
-
-  // LOGICA DEFINITIVA PER TUTTI I CANALI
   let messaggiWhatsApp: { formale: string, cordiale: string, urgenza: string } | null = null
   let messaggiEmail: { formale: any, cordiale: any, urgenza: any } | null = null
 
   if (canale === 'whatsapp') {
-    // SOLO WHATSAPP - usa messaggio_*
     if (proposte?.messaggio_1_formale) {
       messaggiWhatsApp = {
         formale: proposte.messaggio_1_formale,
@@ -169,7 +248,6 @@ export default function LeadPage() {
       }
     }
   } else if (canale === 'email') {
-    // SOLO EMAIL - usa messaggio_* e fai parse
     if (proposte?.messaggio_1_formale) {
       try {
         messaggiEmail = {
@@ -182,7 +260,6 @@ export default function LeadPage() {
       }
     }
   } else if (canale === 'entrambi') {
-    // ENTRAMBI - usa whatsapp_* e email_*
     if (proposte?.whatsapp_1_formale) {
       messaggiWhatsApp = {
         formale: proposte.whatsapp_1_formale,
@@ -204,313 +281,305 @@ export default function LeadPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <button 
-        onClick={() => router.push('/dashboard')}
-        className="mb-6 text-blue-600 hover:underline"
-      >
-        ← Torna alla dashboard
-      </button>
-
-      <div className="bg-white border rounded-lg p-6 mb-6">
-        <h1 className="text-2xl font-bold mb-4">{lead.nome}</h1>
-        <div className="space-y-2">
-          <p><strong>📧 Email:</strong> {lead.email}</p>
-          <p><strong>📞 Telefono:</strong> {lead.telefono}</p>
-          <p><strong>🎯 Interesse:</strong> {lead.interesse}</p>
-          {lead.note && <p><strong>📝 Note:</strong> {lead.note}</p>}
-          
-          {lead.contesto_aggiuntivo && (
-            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm font-semibold text-blue-800 mb-1">💡 Contesto:</p>
-              <p className="text-sm text-blue-900 whitespace-pre-wrap">{lead.contesto_aggiuntivo}</p>
-            </div>
-          )}
-          
-          <p><strong>📊 Stato:</strong> {lead.stato}</p>
-          <p><strong>📲 Canale:</strong> {canale === 'entrambi' ? 'WhatsApp + Email' : canale === 'email' ? 'Email' : 'WhatsApp'}</p>
+    <div className="min-h-screen bg-slate-100 p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* HEADER */}
+        <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="text-slate-600 hover:text-slate-800 mb-4"
+          >
+            ← Torna alla dashboard
+          </button>
+          <h1 className="text-2xl font-bold text-slate-800">{lead.nome}</h1>
+          <div className="mt-4 space-y-2">
+            <p className="text-sm text-slate-600">📞 {lead.telefono}</p>
+            {lead.email && <p className="text-sm text-slate-600">📧 {lead.email}</p>}
+            <p className="text-sm text-slate-600">🎯 {lead.interesse}</p>
+            <p className="text-sm text-slate-600">📱 {lead.canale_preferito}</p>
+            <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+              lead.stato === 'nuovo' ? 'bg-blue-100 text-blue-700' :
+              lead.stato === 'in_attesa_approvazione' ? 'bg-orange-100 text-orange-700' :
+              'bg-green-100 text-green-700'
+            }`}>
+              {lead.stato}
+            </span>
+          </div>
         </div>
-      </div>
 
-      {!proposte ? (
-        <div className="text-center py-8">
-          <p className="text-gray-500">Nessun messaggio generato per questo lead.</p>
-          <p className="text-sm text-gray-400 mt-2">
-            I messaggi verranno generati automaticamente da n8n
+        {/* TEMPLATE WHATSAPP */}
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 shadow-sm border border-green-200 mb-6">
+          <h2 className="text-xl font-bold text-slate-800 mb-2">
+            📱 Template WhatsApp Predefiniti
+          </h2>
+          <p className="text-sm text-slate-600 mb-4">
+            Scegli un template professionale e invialo subito su WhatsApp
           </p>
+
+          <div className="grid gap-3">
+            {templates.map((template) => (
+              <div key={template.id} className="bg-white rounded-lg p-4 border border-slate-200">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex-1">
+                    <h3 className="font-medium text-slate-800">{template.nome}</h3>
+                    <p className="text-xs text-slate-500 mt-1">{template.descrizione}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ml-2 flex-shrink-0 ${
+                    template.categoria === 'formale' ? 'bg-blue-100 text-blue-700' :
+                    template.categoria === 'follow_up' ? 'bg-purple-100 text-purple-700' :
+                    template.categoria === 'urgenza' ? 'bg-red-100 text-red-700' :
+                    'bg-amber-100 text-amber-700'
+                  }`}>
+                    {template.categoria}
+                  </span>
+                </div>
+
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => viewTemplate(template)}
+                    className="flex-1 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm hover:bg-slate-200 transition-all font-medium"
+                  >
+                    👁️ Usa Template
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      ) : (
-        <div className="space-y-8">
-          {/* BOTTONE RIGENERA */}
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <p className="text-sm text-orange-800 mb-3">
-              I messaggi non ti convincono? Chiedi a Claude di rigenerarli con indicazioni specifiche.
-            </p>
+
+        {/* MESSAGGI WHATSAPP GENERATI... (resto del codice uguale) */}
+        {messaggiWhatsApp && (
+          <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">📱 Messaggi WhatsApp Generati</h2>
+            
+            <div className="mb-6 p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-700 mb-2">🎩 Formale</h3>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiWhatsApp.formale}</p>
+              <div className="flex gap-2">
+                <button onClick={() => approvaMessaggio('whatsapp_formale', messaggiWhatsApp!.formale)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
+                <button onClick={() => copiaMessaggio(messaggiWhatsApp!.formale)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
+                <button onClick={() => apriWhatsApp(messaggiWhatsApp!.formale)} className="bg-[#25D366] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#20BA5A]">💬 WhatsApp</button>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-700 mb-2">😊 Cordiale</h3>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiWhatsApp.cordiale}</p>
+              <div className="flex gap-2">
+                <button onClick={() => approvaMessaggio('whatsapp_cordiale', messaggiWhatsApp!.cordiale)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
+                <button onClick={() => copiaMessaggio(messaggiWhatsApp!.cordiale)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
+                <button onClick={() => apriWhatsApp(messaggiWhatsApp!.cordiale)} className="bg-[#25D366] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#20BA5A]">💬 WhatsApp</button>
+              </div>
+            </div>
+
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-700 mb-2">⚡ Urgenza</h3>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiWhatsApp.urgenza}</p>
+              <div className="flex gap-2">
+                <button onClick={() => approvaMessaggio('whatsapp_urgenza', messaggiWhatsApp!.urgenza)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
+                <button onClick={() => copiaMessaggio(messaggiWhatsApp!.urgenza)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
+                <button onClick={() => apriWhatsApp(messaggiWhatsApp!.urgenza)} className="bg-[#25D366] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#20BA5A]">💬 WhatsApp</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MESSAGGI EMAIL... (resto del codice uguale) */}
+        {messaggiEmail && (
+          <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">📧 Messaggi Email Generati</h2>
+            
+            <div className="mb-6 p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-700 mb-2">🎩 Formale</h3>
+              <p className="text-xs text-slate-500 mb-1">Oggetto:</p>
+              <p className="text-sm font-medium text-slate-700 mb-3">{messaggiEmail.formale.oggetto}</p>
+              <p className="text-xs text-slate-500 mb-1">Corpo:</p>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiEmail.formale.corpo}</p>
+              <div className="flex gap-2">
+                <button onClick={() => approvaMessaggio('email_formale', messaggiEmail!.formale.corpo)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
+                <button onClick={() => copiaMessaggio(messaggiEmail!.formale.corpo)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
+                <button onClick={() => apriEmail(messaggiEmail!.formale.oggetto, messaggiEmail!.formale.corpo)} className="bg-slate-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-700">📧 Email</button>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-700 mb-2">😊 Cordiale</h3>
+              <p className="text-xs text-slate-500 mb-1">Oggetto:</p>
+              <p className="text-sm font-medium text-slate-700 mb-3">{messaggiEmail.cordiale.oggetto}</p>
+              <p className="text-xs text-slate-500 mb-1">Corpo:</p>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiEmail.cordiale.corpo}</p>
+              <div className="flex gap-2">
+                <button onClick={() => approvaMessaggio('email_cordiale', messaggiEmail!.cordiale.corpo)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
+                <button onClick={() => copiaMessaggio(messaggiEmail!.cordiale.corpo)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
+                <button onClick={() => apriEmail(messaggiEmail!.cordiale.oggetto, messaggiEmail!.cordiale.corpo)} className="bg-slate-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-700">📧 Email</button>
+              </div>
+            </div>
+
+            <div className="p-4 border border-slate-200 rounded-lg">
+              <h3 className="font-medium text-slate-700 mb-2">⚡ Urgenza</h3>
+              <p className="text-xs text-slate-500 mb-1">Oggetto:</p>
+              <p className="text-sm font-medium text-slate-700 mb-3">{messaggiEmail.urgenza.oggetto}</p>
+              <p className="text-xs text-slate-500 mb-1">Corpo:</p>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiEmail.urgenza.corpo}</p>
+              <div className="flex gap-2">
+                <button onClick={() => approvaMessaggio('email_urgenza', messaggiEmail!.urgenza.corpo)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
+                <button onClick={() => copiaMessaggio(messaggiEmail!.urgenza.corpo)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
+                <button onClick={() => apriEmail(messaggiEmail!.urgenza.oggetto, messaggiEmail!.urgenza.corpo)} className="bg-slate-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-700">📧 Email</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(messaggiWhatsApp || messaggiEmail) && (
+          <button
+            onClick={() => setShowFeedbackModal(true)}
+            className="w-full bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-all font-medium"
+          >
+            🔄 Rigenera messaggi con feedback
+          </button>
+        )}
+
+        {!messaggiWhatsApp && !messaggiEmail && (
+          <div className="bg-white rounded-xl p-6 shadow-sm text-center">
+            <p className="text-slate-600">Nessun messaggio generato ancora. Il sistema li sta processando...</p>
             <button
-              onClick={() => setShowRegeneraModal(true)}
-              className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 font-medium"
+              onClick={() => fetchLead()}
+              className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
             >
-              🔄 Rigenera Messaggi con Feedback
+              🔄 Ricarica
             </button>
           </div>
+        )}
 
-          {/* SEZIONE WHATSAPP */}
-          {messaggiWhatsApp && (
-            <div>
-              <h2 className="text-xl font-bold mb-4">📱 Messaggi WhatsApp</h2>
-              
-              {/* WhatsApp Formale */}
-              <div className="border rounded-lg p-6 mb-4">
-                <h3 className="font-bold text-lg mb-3">💼 Messaggio Formale</h3>
-                <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
-                  {messaggiWhatsApp.formale}
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => approvaMessaggio('formale', messaggiWhatsApp.formale, 'whatsapp')}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                  >
-                    ✅ Approva
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(messaggiWhatsApp.formale)}
-                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                  >
-                    {copied ? '✅ Copiato!' : '📋 Copia'}
-                  </button>
-                  <button
-                    onClick={() => openWhatsApp(lead.telefono, messaggiWhatsApp.formale)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  >
-                    📱 WhatsApp
-                  </button>
-                </div>
+        {/* MODAL FORM CAMPI EXTRA */}
+        {showFormModal && selectedTemplate && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-lg w-full p-6">
+              <h3 className="text-xl font-bold text-slate-800 mb-2">{selectedTemplate.nome}</h3>
+              <p className="text-sm text-slate-500 mb-4">Compila i campi per personalizzare il template</p>
+
+              <div className="space-y-4">
+                {selectedTemplate.campi_extra?.map((field) => (
+                  <div key={field.name}>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      {field.label}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={field.placeholder}
+                      value={extraFields[field.name] || ''}
+                      onChange={(e) => setExtraFields({...extraFields, [field.name]: e.target.value})}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                ))}
               </div>
 
-              {/* WhatsApp Cordiale */}
-              <div className="border rounded-lg p-6 mb-4">
-                <h3 className="font-bold text-lg mb-3">😊 Messaggio Cordiale</h3>
-                <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
-                  {messaggiWhatsApp.cordiale}
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => approvaMessaggio('cordiale', messaggiWhatsApp.cordiale, 'whatsapp')}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                  >
-                    ✅ Approva
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(messaggiWhatsApp.cordiale)}
-                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                  >
-                    {copied ? '✅ Copiato!' : '📋 Copia'}
-                  </button>
-                  <button
-                    onClick={() => openWhatsApp(lead.telefono, messaggiWhatsApp.cordiale)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  >
-                    📱 WhatsApp
-                  </button>
-                </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowFormModal(false)
+                    setExtraFields({})
+                  }}
+                  className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={handleFormSubmit}
+                  className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all font-medium"
+                >
+                  📝 Continua
+                </button>
               </div>
-
-              {/* WhatsApp Urgenza */}
-              <div className="border rounded-lg p-6 mb-4">
-                <h3 className="font-bold text-lg mb-3">⚡ Messaggio Urgenza</h3>
-                <div className="bg-gray-50 p-4 rounded mb-4 whitespace-pre-wrap">
-                  {messaggiWhatsApp.urgenza}
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => approvaMessaggio('urgenza', messaggiWhatsApp.urgenza, 'whatsapp')}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                  >
-                    ✅ Approva
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(messaggiWhatsApp.urgenza)}
-                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                  >
-                    {copied ? '✅ Copiato!' : '📋 Copia'}
-                  </button>
-                  <button
-                    onClick={() => openWhatsApp(lead.telefono, messaggiWhatsApp.urgenza)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  >
-                    📱 WhatsApp
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* SEZIONE EMAIL */}
-          {messaggiEmail && (
-            <div>
-              <h2 className="text-xl font-bold mb-4">📧 Messaggi Email</h2>
-              
-              {/* Email Formale */}
-              <div className="border rounded-lg p-6 mb-4">
-                <h3 className="font-bold text-lg mb-3">💼 Email Formale</h3>
-                <div className="mb-4">
-                  <p className="font-semibold text-sm text-gray-600 mb-1">Oggetto:</p>
-                  <div className="bg-blue-50 p-3 rounded">
-                    {messaggiEmail.formale.oggetto}
-                  </div>
-                </div>
-                <div className="mb-4">
-                  <p className="font-semibold text-sm text-gray-600 mb-1">Corpo:</p>
-                  <div className="bg-gray-50 p-4 rounded whitespace-pre-wrap">
-                    {messaggiEmail.formale.corpo}
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => approvaMessaggio('formale', `${messaggiEmail.formale.oggetto}\n\n${messaggiEmail.formale.corpo}`, 'email')}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                  >
-                    ✅ Approva
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(`${messaggiEmail.formale.oggetto}\n\n${messaggiEmail.formale.corpo}`)}
-                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                  >
-                    {copied ? '✅ Copiato!' : '📋 Copia'}
-                  </button>
-                  <button
-                    onClick={() => openEmail(lead.email, messaggiEmail.formale.oggetto, messaggiEmail.formale.corpo)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  >
-                    📧 Email
-                  </button>
-                </div>
-              </div>
-
-              {/* Email Cordiale */}
-              <div className="border rounded-lg p-6 mb-4">
-                <h3 className="font-bold text-lg mb-3">😊 Email Cordiale</h3>
-                <div className="mb-4">
-                  <p className="font-semibold text-sm text-gray-600 mb-1">Oggetto:</p>
-                  <div className="bg-blue-50 p-3 rounded">
-                    {messaggiEmail.cordiale.oggetto}
-                  </div>
-                </div>
-                <div className="mb-4">
-                  <p className="font-semibold text-sm text-gray-600 mb-1">Corpo:</p>
-                  <div className="bg-gray-50 p-4 rounded whitespace-pre-wrap">
-                    {messaggiEmail.cordiale.corpo}
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => approvaMessaggio('cordiale', `${messaggiEmail.cordiale.oggetto}\n\n${messaggiEmail.cordiale.corpo}`, 'email')}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                  >
-                    ✅ Approva
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(`${messaggiEmail.cordiale.oggetto}\n\n${messaggiEmail.cordiale.corpo}`)}
-                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                  >
-                    {copied ? '✅ Copiato!' : '📋 Copia'}
-                  </button>
-                  <button
-                    onClick={() => openEmail(lead.email, messaggiEmail.cordiale.oggetto, messaggiEmail.cordiale.corpo)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  >
-                    📧 Email
-                  </button>
-                </div>
-              </div>
-
-              {/* Email Urgenza */}
-              <div className="border rounded-lg p-6 mb-4">
-                <h3 className="font-bold text-lg mb-3">⚡ Email Urgenza</h3>
-                <div className="mb-4">
-                  <p className="font-semibold text-sm text-gray-600 mb-1">Oggetto:</p>
-                  <div className="bg-blue-50 p-3 rounded">
-                    {messaggiEmail.urgenza.oggetto}
-                  </div>
-                </div>
-                <div className="mb-4">
-                  <p className="font-semibold text-sm text-gray-600 mb-1">Corpo:</p>
-                  <div className="bg-gray-50 p-4 rounded whitespace-pre-wrap">
-                    {messaggiEmail.urgenza.corpo}
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => approvaMessaggio('urgenza', `${messaggiEmail.urgenza.oggetto}\n\n${messaggiEmail.urgenza.corpo}`, 'email')}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                  >
-                    ✅ Approva
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(`${messaggiEmail.urgenza.oggetto}\n\n${messaggiEmail.urgenza.corpo}`)}
-                    className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-                  >
-                    {copied ? '✅ Copiato!' : '📋 Copia'}
-                  </button>
-                  <button
-                    onClick={() => openEmail(lead.email, messaggiEmail.urgenza.oggetto, messaggiEmail.urgenza.corpo)}
-                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  >
-                    📧 Email
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* MODAL RIGENERA */}
-      {showRegeneraModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
-            <h2 className="text-2xl font-bold mb-4">🔄 Rigenera Messaggi</h2>
-            
-            <p className="text-gray-700 mb-4">
-              Fornisci indicazioni a Claude per migliorare i messaggi:
-            </p>
-
-            <textarea
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 mb-4"
-              rows={6}
-              placeholder="Es: Troppo formale, voglio un tono più cordiale. Aggiungi più urgenza. Menziona esplicitamente il webinar a cui ha partecipato..."
-            />
-
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-              <p className="text-sm text-blue-800">
-                💡 <strong>Suggerimenti:</strong> Più dettagli fornisci, migliori saranno i nuovi messaggi! Esempi: "Meno tecnico", "Più esempi pratici", "Focus su risparmio tempo", "Tono più commerciale"
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowRegeneraModal(false)
-                  setFeedback('')
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                disabled={regenerating}
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleRigenera}
-                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
-                disabled={regenerating}
-              >
-                {regenerating ? 'Rigenerazione...' : '🔄 Rigenera Ora'}
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* MODAL FEEDBACK */}
+        {showFeedbackModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-lg w-full p-6">
+              <h3 className="text-xl font-bold text-slate-800 mb-4">🔄 Rigenera con Feedback</h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Descrivi cosa vuoi migliorare nei messaggi:
+              </p>
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg p-3 text-sm min-h-[120px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Es: Rendi il tono più professionale, aggiungi dettagli tecnici sui prodotti, abbrevia i messaggi..."
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setShowFeedbackModal(false)}
+                  disabled={regenerating}
+                  className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={rigeneraConFeedback}
+                  disabled={regenerating}
+                  className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-all disabled:opacity-50"
+                >
+                  {regenerating ? '⏳ Rigenerando...' : '✨ Rigenera'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL TEMPLATE PREVIEW */}
+        {showTemplateModal && selectedTemplate && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800">{selectedTemplate.nome}</h3>
+                  <p className="text-sm text-slate-500">{selectedTemplate.descrizione}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowTemplateModal(false)
+                    setExtraFields({})
+                  }}
+                  className="text-slate-400 hover:text-slate-600 text-2xl font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="bg-[#ECE5DD] rounded-lg p-4 mb-4">
+                <div className="bg-white rounded-lg p-3 shadow-sm max-w-[85%] whitespace-pre-wrap text-sm">
+                  {templatePreview}
+                </div>
+                <p className="text-xs text-slate-500 mt-2 text-right">
+                  Oggi {new Date().toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit'})}
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowTemplateModal(false)
+                    setExtraFields({})
+                  }}
+                  className="flex-1 bg-slate-200 text-slate-700 px-4 py-3 rounded-lg hover:bg-slate-300 transition-all font-medium"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={() => useTemplate(selectedTemplate)}
+                  className="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-all font-medium"
+                >
+                  💬 Invia su WhatsApp
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
