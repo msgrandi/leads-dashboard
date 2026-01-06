@@ -60,6 +60,7 @@ export default function LeadDetail() {
   // Upload allegato
   const [allegatoFile, setAllegatoFile] = useState<File | null>(null)
   const [allegatoUrl, setAllegatoUrl] = useState<string>('')
+  const [allegatoFileName, setAllegatoFileName] = useState<string>('')
   const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
@@ -133,7 +134,13 @@ export default function LeadDetail() {
     }
   }
 
-  function personalizeTemplate(template: string, lead: Lead, extraData: Record<string, string> = {}, fileUrl?: string) {
+  function personalizeTemplate(
+    template: string, 
+    lead: Lead, 
+    extraData: Record<string, string> = {}, 
+    fileUrl?: string,
+    fileName?: string
+  ) {
     let result = template
       .replace(/{{nome}}/g, lead.nome)
       .replace(/{{interesse}}/g, lead.interesse)
@@ -146,9 +153,9 @@ export default function LeadDetail() {
       result = result.replace(regex, extraData[key])
     })
 
-    // Aggiungi link allegato se presente
-    if (fileUrl) {
-      result += `\n\n📎 *Allegato:* ${fileUrl}`
+    // Aggiungi link allegato se presente CON TESTO DESCRITTIVO
+    if (fileUrl && fileName) {
+      result += `\n\n📄 *Locandina evento:* ${fileName}\n🔗 Scarica qui: ${fileUrl}`
     }
     
     return result
@@ -163,6 +170,7 @@ export default function LeadDetail() {
       setExtraFields({})
       setAllegatoFile(null)
       setAllegatoUrl('')
+      setAllegatoFileName('')
       setShowFormModal(true)
     } else {
       // Altrimenti mostra direttamente anteprima
@@ -188,14 +196,18 @@ export default function LeadDetail() {
 
     // Upload file se presente
     let fileUrl = allegatoUrl
+    let fileName = allegatoFileName
+    
     if (allegatoFile && !fileUrl) {
       fileUrl = await handleFileUpload(allegatoFile) || ''
+      fileName = allegatoFile.name
     }
     
     // Genera anteprima con i dati del form
-    const personalized = personalizeTemplate(selectedTemplate.template, lead, extraFields, fileUrl)
+    const personalized = personalizeTemplate(selectedTemplate.template, lead, extraFields, fileUrl, fileName)
     setTemplatePreview(personalized)
     setAllegatoUrl(fileUrl)
+    setAllegatoFileName(fileName)
     setShowFormModal(false)
     setShowTemplateModal(true)
   }
@@ -213,13 +225,14 @@ export default function LeadDetail() {
     setExtraFields({})
     setAllegatoFile(null)
     setAllegatoUrl('')
+    setAllegatoFileName('')
   }
 
   async function logTemplateUsage(templateId: number) {
     await supabase.from('log').insert({
       lead_id: leadId,
       azione: 'template_whatsapp_utilizzato',
-      dettagli: `Template ID: ${templateId}${allegatoUrl ? ' - Con allegato' : ''}`
+      dettagli: `Template ID: ${templateId}${allegatoUrl ? ' - Con allegato: ' + allegatoFileName : ''}`
     })
   }
 
@@ -596,6 +609,7 @@ export default function LeadDetail() {
                     setExtraFields({})
                     setAllegatoFile(null)
                     setAllegatoUrl('')
+                    setAllegatoFileName('')
                   }}
                   disabled={uploading}
                   className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium disabled:opacity-50"
@@ -663,6 +677,7 @@ export default function LeadDetail() {
                     setExtraFields({})
                     setAllegatoFile(null)
                     setAllegatoUrl('')
+                    setAllegatoFileName('')
                   }}
                   className="text-slate-400 hover:text-slate-600 text-2xl font-bold"
                 >
@@ -679,12 +694,10 @@ export default function LeadDetail() {
                 </p>
               </div>
 
-              {allegatoUrl && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                  <p className="text-xs text-blue-700 font-medium mb-1">📎 Allegato incluso nel messaggio</p>
-                  <a href={allegatoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
-                    {allegatoUrl}
-                  </a>
+              {allegatoUrl && allegatoFileName && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                  <p className="text-xs text-green-700 font-medium mb-1">✅ Allegato incluso nel messaggio</p>
+                  <p className="text-xs text-slate-600">📄 {allegatoFileName}</p>
                 </div>
               )}
 
@@ -695,6 +708,7 @@ export default function LeadDetail() {
                     setExtraFields({})
                     setAllegatoFile(null)
                     setAllegatoUrl('')
+                    setAllegatoFileName('')
                   }}
                   className="flex-1 bg-slate-200 text-slate-700 px-4 py-3 rounded-lg hover:bg-slate-300 transition-all font-medium"
                 >
