@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 
 type Lead = {
   id: number
@@ -36,8 +36,11 @@ type Template = {
   campi_extra?: Array<{name: string, label: string, placeholder: string}>
 }
 
-export default function LeadDetail({ params }: { params: { id: string } }) {
+export default function LeadDetail() {
   const router = useRouter()
+  const params = useParams()
+  const leadId = params.id as string
+  
   const [lead, setLead] = useState<Lead | null>(null)
   const [proposte, setProposte] = useState<Proposte | null>(null)
   const [loading, setLoading] = useState(true)
@@ -54,21 +57,23 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
   const [extraFields, setExtraFields] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    fetchLead()
-    fetchTemplates()
-  }, [params.id])
+    if (leadId) {
+      fetchLead()
+      fetchTemplates()
+    }
+  }, [leadId])
 
   async function fetchLead() {
     const { data: leadData } = await supabase
       .from('leads')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', leadId)
       .single()
 
     const { data: proposteData } = await supabase
       .from('proposte_messaggi')
       .select('*')
-      .eq('lead_id', params.id)
+      .eq('lead_id', leadId)
       .single()
 
     setLead(leadData)
@@ -154,7 +159,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
 
   async function logTemplateUsage(templateId: number) {
     await supabase.from('log').insert({
-      lead_id: params.id,
+      lead_id: leadId,
       azione: 'template_whatsapp_utilizzato',
       dettagli: `Template ID: ${templateId}`
     })
@@ -162,7 +167,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
 
   async function approvaMessaggio(tipo: string, testo: string) {
     await supabase.from('log').insert({
-      lead_id: params.id,
+      lead_id: leadId,
       azione: 'messaggio_approvato',
       dettagli: `Tipo: ${tipo}`
     })
@@ -170,7 +175,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
     await supabase
       .from('leads')
       .update({ stato: 'approvato' })
-      .eq('id', params.id)
+      .eq('id', leadId)
 
     alert('✅ Messaggio approvato!')
     fetchLead()
@@ -206,7 +211,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leadId: params.id,
+          leadId: leadId,
           feedback: feedback
         })
       })
@@ -316,46 +321,52 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
             Scegli un template professionale e invialo subito su WhatsApp
           </p>
 
-          <div className="grid gap-3">
-            {templates.map((template) => (
-              <div key={template.id} className="bg-white rounded-lg p-4 border border-slate-200">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-slate-800">{template.nome}</h3>
-                    <p className="text-xs text-slate-500 mt-1">{template.descrizione}</p>
+          {templates.length === 0 ? (
+            <div className="bg-white rounded-lg p-4 text-center">
+              <p className="text-slate-500">Nessun template disponibile</p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {templates.map((template) => (
+                <div key={template.id} className="bg-white rounded-lg p-4 border border-slate-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1">
+                      <h3 className="font-medium text-slate-800">{template.nome}</h3>
+                      <p className="text-xs text-slate-500 mt-1">{template.descrizione}</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ml-2 flex-shrink-0 ${
+                      template.categoria === 'formale' ? 'bg-blue-100 text-blue-700' :
+                      template.categoria === 'follow_up' ? 'bg-purple-100 text-purple-700' :
+                      template.categoria === 'urgenza' ? 'bg-red-100 text-red-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      {template.categoria}
+                    </span>
                   </div>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ml-2 flex-shrink-0 ${
-                    template.categoria === 'formale' ? 'bg-blue-100 text-blue-700' :
-                    template.categoria === 'follow_up' ? 'bg-purple-100 text-purple-700' :
-                    template.categoria === 'urgenza' ? 'bg-red-100 text-red-700' :
-                    'bg-amber-100 text-amber-700'
-                  }`}>
-                    {template.categoria}
-                  </span>
-                </div>
 
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => viewTemplate(template)}
-                    className="flex-1 bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm hover:bg-slate-200 transition-all font-medium"
-                  >
-                    👁️ Usa Template
-                  </button>
+                  <div className="mt-3">
+                    <button
+                      onClick={() => viewTemplate(template)}
+                      className="w-full bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition-all font-medium"
+                    >
+                      💬 Usa Template
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* MESSAGGI WHATSAPP GENERATI... (resto del codice uguale) */}
+        {/* MESSAGGI WHATSAPP GENERATI */}
         {messaggiWhatsApp && (
           <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">📱 Messaggi WhatsApp Generati</h2>
+            <h2 className="text-xl font-bold text-slate-800 mb-4">📱 Messaggi WhatsApp Generati da AI</h2>
             
             <div className="mb-6 p-4 border border-slate-200 rounded-lg">
               <h3 className="font-medium text-slate-700 mb-2">🎩 Formale</h3>
               <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiWhatsApp.formale}</p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button onClick={() => approvaMessaggio('whatsapp_formale', messaggiWhatsApp!.formale)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
                 <button onClick={() => copiaMessaggio(messaggiWhatsApp!.formale)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
                 <button onClick={() => apriWhatsApp(messaggiWhatsApp!.formale)} className="bg-[#25D366] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#20BA5A]">💬 WhatsApp</button>
@@ -365,7 +376,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
             <div className="mb-6 p-4 border border-slate-200 rounded-lg">
               <h3 className="font-medium text-slate-700 mb-2">😊 Cordiale</h3>
               <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiWhatsApp.cordiale}</p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button onClick={() => approvaMessaggio('whatsapp_cordiale', messaggiWhatsApp!.cordiale)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
                 <button onClick={() => copiaMessaggio(messaggiWhatsApp!.cordiale)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
                 <button onClick={() => apriWhatsApp(messaggiWhatsApp!.cordiale)} className="bg-[#25D366] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#20BA5A]">💬 WhatsApp</button>
@@ -375,7 +386,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
             <div className="p-4 border border-slate-200 rounded-lg">
               <h3 className="font-medium text-slate-700 mb-2">⚡ Urgenza</h3>
               <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiWhatsApp.urgenza}</p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button onClick={() => approvaMessaggio('whatsapp_urgenza', messaggiWhatsApp!.urgenza)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
                 <button onClick={() => copiaMessaggio(messaggiWhatsApp!.urgenza)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
                 <button onClick={() => apriWhatsApp(messaggiWhatsApp!.urgenza)} className="bg-[#25D366] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#20BA5A]">💬 WhatsApp</button>
@@ -384,10 +395,10 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {/* MESSAGGI EMAIL... (resto del codice uguale) */}
+        {/* MESSAGGI EMAIL GENERATI */}
         {messaggiEmail && (
           <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">📧 Messaggi Email Generati</h2>
+            <h2 className="text-xl font-bold text-slate-800 mb-4">📧 Messaggi Email Generati da AI</h2>
             
             <div className="mb-6 p-4 border border-slate-200 rounded-lg">
               <h3 className="font-medium text-slate-700 mb-2">🎩 Formale</h3>
@@ -395,7 +406,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
               <p className="text-sm font-medium text-slate-700 mb-3">{messaggiEmail.formale.oggetto}</p>
               <p className="text-xs text-slate-500 mb-1">Corpo:</p>
               <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiEmail.formale.corpo}</p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button onClick={() => approvaMessaggio('email_formale', messaggiEmail!.formale.corpo)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
                 <button onClick={() => copiaMessaggio(messaggiEmail!.formale.corpo)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
                 <button onClick={() => apriEmail(messaggiEmail!.formale.oggetto, messaggiEmail!.formale.corpo)} className="bg-slate-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-700">📧 Email</button>
@@ -408,7 +419,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
               <p className="text-sm font-medium text-slate-700 mb-3">{messaggiEmail.cordiale.oggetto}</p>
               <p className="text-xs text-slate-500 mb-1">Corpo:</p>
               <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiEmail.cordiale.corpo}</p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button onClick={() => approvaMessaggio('email_cordiale', messaggiEmail!.cordiale.corpo)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
                 <button onClick={() => copiaMessaggio(messaggiEmail!.cordiale.corpo)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
                 <button onClick={() => apriEmail(messaggiEmail!.cordiale.oggetto, messaggiEmail!.cordiale.corpo)} className="bg-slate-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-700">📧 Email</button>
@@ -421,7 +432,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
               <p className="text-sm font-medium text-slate-700 mb-3">{messaggiEmail.urgenza.oggetto}</p>
               <p className="text-xs text-slate-500 mb-1">Corpo:</p>
               <p className="text-sm text-slate-600 whitespace-pre-wrap mb-4">{messaggiEmail.urgenza.corpo}</p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button onClick={() => approvaMessaggio('email_urgenza', messaggiEmail!.urgenza.corpo)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700">✅ Approva</button>
                 <button onClick={() => copiaMessaggio(messaggiEmail!.urgenza.corpo)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">📋 Copia</button>
                 <button onClick={() => apriEmail(messaggiEmail!.urgenza.oggetto, messaggiEmail!.urgenza.corpo)} className="bg-slate-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-700">📧 Email</button>
@@ -430,6 +441,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
           </div>
         )}
 
+        {/* BOTTONE RIGENERA */}
         {(messaggiWhatsApp || messaggiEmail) && (
           <button
             onClick={() => setShowFeedbackModal(true)}
@@ -439,6 +451,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
           </button>
         )}
 
+        {/* NO MESSAGGI */}
         {!messaggiWhatsApp && !messaggiEmail && (
           <div className="bg-white rounded-xl p-6 shadow-sm text-center">
             <p className="text-slate-600">Nessun messaggio generato ancora. Il sistema li sta processando...</p>
@@ -454,7 +467,7 @@ export default function LeadDetail({ params }: { params: { id: string } }) {
         {/* MODAL FORM CAMPI EXTRA */}
         {showFormModal && selectedTemplate && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-lg w-full p-6">
+            <div className="bg-white rounded-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl font-bold text-slate-800 mb-2">{selectedTemplate.nome}</h3>
               <p className="text-sm text-slate-500 mb-4">Compila i campi per personalizzare il template</p>
 
