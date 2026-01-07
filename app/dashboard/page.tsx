@@ -30,6 +30,18 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [stats, setStats] = useState({ nuovo: 0, in_attesa: 0, approvato: 0, totale: 0 })
 
+  // Modifica & Elimina
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [editForm, setEditForm] = useState({
+    nome: '',
+    telefono: '',
+    email: '',
+    interesse: '',
+    canale_preferito: 'whatsapp'
+  })
+
   useEffect(() => {
     checkSession()
   }, [])
@@ -132,6 +144,88 @@ export default function Dashboard() {
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  // MODIFICA LEAD
+  function openEditModal(lead: Lead) {
+    setSelectedLead(lead)
+    setEditForm({
+      nome: lead.nome,
+      telefono: lead.telefono,
+      email: lead.email || '',
+      interesse: lead.interesse,
+      canale_preferito: lead.canale_preferito
+    })
+    setIsEditModalOpen(true)
+  }
+
+  async function handleEditLead() {
+    if (!selectedLead) return
+
+    // Validazione
+    if (!editForm.nome.trim() || !editForm.telefono.trim() || !editForm.interesse.trim()) {
+      alert('⚠️ Compila tutti i campi obbligatori!')
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({
+          nome: editForm.nome.trim(),
+          telefono: editForm.telefono.trim(),
+          email: editForm.email.trim() || null,
+          interesse: editForm.interesse.trim(),
+          canale_preferito: editForm.canale_preferito
+        })
+        .eq('id', selectedLead.id)
+
+      if (error) throw error
+
+      // Log modifica
+      await supabase.from('log').insert({
+        lead_id: selectedLead.id,
+        azione: 'lead_modificato',
+        dettagli: `Modificato: ${editForm.nome}`
+      })
+
+      alert('✅ Lead modificato con successo!')
+      setIsEditModalOpen(false)
+      fetchLeads()
+    } catch (error) {
+      console.error('Errore modifica:', error)
+      alert('❌ Errore durante la modifica')
+    }
+  }
+
+  // ELIMINA LEAD
+  function openDeleteModal(lead: Lead) {
+    setSelectedLead(lead)
+    setIsDeleteModalOpen(true)
+  }
+
+  async function handleDeleteLead() {
+    if (!selectedLead) return
+
+    try {
+      // Elimina log associati
+      await supabase.from('log').delete().eq('lead_id', selectedLead.id)
+
+      // Elimina proposte messaggi
+      await supabase.from('proposte_messaggi').delete().eq('lead_id', selectedLead.id)
+
+      // Elimina lead
+      const { error } = await supabase.from('leads').delete().eq('id', selectedLead.id)
+
+      if (error) throw error
+
+      alert('✅ Lead eliminato definitivamente!')
+      setIsDeleteModalOpen(false)
+      fetchLeads()
+    } catch (error) {
+      console.error('Errore eliminazione:', error)
+      alert('❌ Errore durante l\'eliminazione')
+    }
   }
 
   if (loading) {
@@ -239,19 +333,13 @@ export default function Dashboard() {
                 <div className="mt-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-slate-600 flex-1">📞 {lead.telefono}</p>
-                    <a href={`tel:${lead.telefono}`} className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition-all duration-200 font-medium">
-                      📞 Chiama
-                    </a>
-                    <a href={`https://wa.me/${lead.telefono.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-700 transition-all duration-200 font-medium">
-                      💬 WhatsApp
-                    </a>
+                    <a href={`tel:${lead.telefono}`} className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition-all duration-200 font-medium">📞 Chiama</a>
+                    <a href={`https://wa.me/${lead.telefono.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-700 transition-all duration-200 font-medium">💬 WhatsApp</a>
                   </div>
                   {lead.email && (
                     <div className="flex items-center gap-2">
                       <p className="text-sm text-slate-600 flex-1">📧 {lead.email}</p>
-                      <a href={`mailto:${lead.email}`} className="bg-slate-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-slate-700 transition-all duration-200 font-medium">
-                        📧 Email
-                      </a>
+                      <a href={`mailto:${lead.email}`} className="bg-slate-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-slate-700 transition-all duration-200 font-medium">📧 Email</a>
                     </div>
                   )}
                   {lead.interesse && <p className="text-sm text-slate-600">🎯 {lead.interesse}</p>}
@@ -262,9 +350,19 @@ export default function Dashboard() {
                     {lead.stato === 'nuovo' ? '🔵 Nuovo' : lead.stato === 'in_attesa_approvazione' ? '🟠 In Attesa' : lead.stato === 'approvato' ? '✅ Approvato' : lead.stato}
                   </span>
                 </div>
-                <button onClick={() => router.push(`/lead/${lead.id}`)} className="mt-4 bg-[#00243F] text-white px-4 py-2 rounded-lg hover:bg-[#003D66] transition-all duration-200 text-sm font-medium shadow-sm w-full">
-                  👁️ Vedi messaggi
-                </button>
+                
+                {/* BOTTONI AZIONI */}
+                <div className="mt-4 flex gap-2">
+                  <button onClick={() => router.push(`/lead/${lead.id}`)} className="flex-1 bg-[#00243F] text-white px-4 py-2 rounded-lg hover:bg-[#003D66] transition-all duration-200 text-sm font-medium shadow-sm">
+                    👁️ Vedi messaggi
+                  </button>
+                  <button onClick={() => openEditModal(lead)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-medium shadow-sm">
+                    ✏️ Modifica
+                  </button>
+                  <button onClick={() => openDeleteModal(lead)} className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all duration-200 text-sm font-medium shadow-sm">
+                    🗑️ Elimina
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -273,6 +371,129 @@ export default function Dashboard() {
 
       <NewLeadModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={() => { fetchLeads(); setIsModalOpen(false); }} />
       <UploadExcelModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} onSuccess={() => { fetchLeads(); setIsUploadModalOpen(false); }} />
+
+      {/* MODAL MODIFICA LEAD */}
+      {isEditModalOpen && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6">
+            <h3 className="text-xl font-bold text-slate-800 mb-4">✏️ Modifica Lead</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nome *</label>
+                <input
+                  type="text"
+                  value={editForm.nome}
+                  onChange={(e) => setEditForm({...editForm, nome: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Dr. Mario Rossi"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Telefono *</label>
+                <input
+                  type="text"
+                  value={editForm.telefono}
+                  onChange={(e) => setEditForm({...editForm, telefono: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="3471234567"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="mario.rossi@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Interesse *</label>
+                <input
+                  type="text"
+                  value={editForm.interesse}
+                  onChange={(e) => setEditForm({...editForm, interesse: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Corso Endodonzia Avanzata"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Canale Preferito *</label>
+                <select
+                  value={editForm.canale_preferito}
+                  onChange={(e) => setEditForm({...editForm, canale_preferito: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">Email</option>
+                  <option value="entrambi">Entrambi</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleEditLead}
+                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all font-medium"
+              >
+                💾 Salva Modifiche
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFERMA ELIMINAZIONE */}
+      {isDeleteModalOpen && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-red-600 mb-4">⚠️ Conferma Eliminazione</h3>
+            
+            <p className="text-slate-700 mb-2">
+              Sei sicuro di voler eliminare definitivamente questo lead?
+            </p>
+            <p className="text-sm text-slate-600 mb-4">
+              <strong>{selectedLead.nome}</strong><br/>
+              {selectedLead.telefono}<br/>
+              {selectedLead.interesse}
+            </p>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-red-700">
+                <strong>⚠️ Attenzione:</strong> Questa azione è <strong>irreversibile</strong>. 
+                Tutti i dati associati (messaggi, log) saranno eliminati definitivamente.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleDeleteLead}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all font-medium"
+              >
+                🗑️ Elimina Definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
