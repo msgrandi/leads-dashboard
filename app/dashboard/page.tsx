@@ -365,6 +365,18 @@ export default function Dashboard() {
                     🔍 Scraping
                   </button>
                   <button
+                    onClick={() => { router.push('/scraped-leads'); setIsMenuOpen(false); }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2"
+                  >
+                    📋 Lead Scrapati
+                  </button>
+                  <button
+                  onClick={() => { router.push('/campaigns'); setIsMenuOpen(false); }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2"
+                  >
+                    📊 Campagne
+                  </button>
+                  <button
                     onClick={() => { router.push('/templates'); setIsMenuOpen(false); }}
                     className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2"
                   >
