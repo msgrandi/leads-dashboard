@@ -10,7 +10,7 @@ const supabase = createClient(
 )
 
 export default function ScrapedLeadsPage() {
-  const [leads, setLeads] = useState([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [cityFilter, setCityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
