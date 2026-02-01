@@ -208,11 +208,14 @@ export default function Dashboard() {
         nome: row['Nome'] || row['nome'] || row['Nome Completo'] || row['name'] || '',
         telefono: String(row['Telefono'] || row['telefono'] || row['Tel'] || row['phone'] || ''),
         email: row['Email'] || row['email'] || row['E-mail'] || '',
-        interesse: row['Interesse'] || row['interesse'] || row['Note'] || row['notes'] || '',
+        interesse: row['Interesse'] || row['interesse'] || '',
+        note: row['Note'] || row['note'] || '',
+        dettagli_claude: row['Dettagli_claude'] || row['dettagli_claude'] || '',
+        contesto_aggiuntivo: row['Contesto_aggiuntivo'] || row['contesto_aggiuntivo'] || '',
         citta: row['Città'] || row['citta'] || row['City'] || row['city'] || '',
-        canale_preferito: row['Canale'] || row['canale_preferito'] || 'whatsapp',
-        stato: 'nuovo'
-      })).filter(lead => lead.nome && lead.telefono)
+        canale_preferito: row['Canale'] || row['canale_preferito'] || row['Canale_preferito'] || 'whatsapp',
+      stato: 'nuovo'
+})).filter(lead => lead.nome && lead.telefono)
       
       if (leadsToInsert.length === 0) {
         alert('⚠️ Nessun lead valido trovato. Assicurati che il file abbia colonne "Nome" e "Telefono"')
