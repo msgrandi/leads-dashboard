@@ -80,7 +80,7 @@ export default function Dashboard() {
       return
     }
     const query = searchQuery.toLowerCase()
-    const filtered = leads.filter(lead =>
+    const filtered = leads.filter((lead: Lead) =>
       lead.nome?.toLowerCase().includes(query) ||
       lead.email?.toLowerCase().includes(query) ||
       lead.telefono?.includes(query) ||
@@ -94,9 +94,9 @@ export default function Dashboard() {
     async function fetchStats() {
       const { data } = await supabase.from('leads').select('stato')
       if (data) {
-        const nuovo = data.filter(l => l.stato === 'nuovo').length
-        const in_attesa = data.filter(l => l.stato === 'in_attesa_approvazione').length
-        const approvato = data.filter(l => l.stato === 'approvato').length
+        const nuovo = data.filter((l: any) => l.stato === 'nuovo').length
+        const in_attesa = data.filter((l: any) => l.stato === 'in_attesa_approvazione').length
+        const approvato = data.filter((l: any) => l.stato === 'approvato').length
         setStats({ nuovo, in_attesa, approvato, totale: data.length })
       }
     }
@@ -105,7 +105,8 @@ export default function Dashboard() {
 
   async function checkSession() {
     const { data } = await supabase.auth.getSession()
-    if (!data.session) {
+    const session = data?.session
+    if (!session) {
       router.push('/login')
       return
     }
@@ -133,8 +134,8 @@ export default function Dashboard() {
       const { data: leadsData, error: leadsError } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
       if (leadsError) throw leadsError
       const { data: logData } = await supabase.from('log').select('*').order('created_at', { ascending: false })
-      const excelData = leadsData?.map(lead => {
-        const ultimoLog = logData?.find(log => log.lead_id === lead.id)
+      const excelData = leadsData?.map((lead: any) => {
+        const ultimoLog = logData?.find((log: any) => log.lead_id === lead.id)
         return {
           'Nome Completo': lead.nome,
           'Email': lead.email,
@@ -191,16 +192,18 @@ export default function Dashboard() {
     setUploadLoading(true)
     try {
       const XLSX = await import('xlsx')
-      const data = await uploadFile.arrayBuffer()
-      const workbook = XLSX.read(data)
+      const fileData = await uploadFile.arrayBuffer()
+      const workbook = XLSX.read(fileData)
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
       const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet)
+      
       if (jsonData.length === 0) {
         alert('⚠️ Il file è vuoto')
         setUploadLoading(false)
         return
       }
+      
       const leadsToInsert = jsonData.map(row => ({
         nome: row['Nome'] || row['nome'] || row['Nome Completo'] || row['name'] || '',
         telefono: String(row['Telefono'] || row['telefono'] || row['Tel'] || row['phone'] || ''),
@@ -210,13 +213,22 @@ export default function Dashboard() {
         canale_preferito: row['Canale'] || row['canale_preferito'] || 'whatsapp',
         stato: 'nuovo'
       })).filter(lead => lead.nome && lead.telefono)
+      
       if (leadsToInsert.length === 0) {
         alert('⚠️ Nessun lead valido trovato. Assicurati che il file abbia colonne "Nome" e "Telefono"')
         setUploadLoading(false)
         return
       }
-      const { error } = await supabase.from('leads').insert(leadsToInsert)
-      if (error) throw error
+
+      const { data: insertedData, error: insertError } = await supabase.from('leads').insert(leadsToInsert)
+      
+      if (insertError) {
+        console.error('ERRORE SUPABASE:', insertError)
+        alert(`❌ Errore Supabase: ${insertError.message}`)
+        throw insertError
+      }
+      
+      console.log('LEAD INSERITI:', insertedData)
       alert(`✅ Importati ${leadsToInsert.length} leads con successo!`)
       setIsUploadModalOpen(false)
       setUploadFile(null)
@@ -231,7 +243,7 @@ export default function Dashboard() {
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
     router.push('/login')
   }
 
