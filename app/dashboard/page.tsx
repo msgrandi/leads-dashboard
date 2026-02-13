@@ -25,7 +25,7 @@ type Lead = {
   email_body?: string
 }
 
-type FiltroStato = 'tutti' | 'nuovo' | 'in_attesa_approvazione' | 'approvato'
+type FiltroStato = 'tutti' | 'nuovo' | 'in_attesa_approvazione' | 'approvato' | 'contattato'
 
 export default function Dashboard() {
   const router = useRouter()
@@ -34,7 +34,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [filtroAttivo, setFiltroAttivo] = useState<FiltroStato>('tutti')
   const [searchQuery, setSearchQuery] = useState('')
-  const [stats, setStats] = useState({ nuovo: 0, in_attesa: 0, approvato: 0, totale: 0 })
+  const [stats, setStats] = useState({ nuovo: 0, in_attesa: 0, approvato: 0, contattato: 0, totale: 0 })
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -97,7 +97,8 @@ export default function Dashboard() {
         const nuovo = data.filter((l: any) => l.stato === 'nuovo').length
         const in_attesa = data.filter((l: any) => l.stato === 'in_attesa_approvazione').length
         const approvato = data.filter((l: any) => l.stato === 'approvato').length
-        setStats({ nuovo, in_attesa, approvato, totale: data.length })
+        const contattato = data.filter((l: any) => l.stato === 'contattato').length
+        setStats({ nuovo, in_attesa, approvato, contattato, totale: data.length })
       }
     }
     fetchStats()
@@ -214,8 +215,8 @@ export default function Dashboard() {
         contesto_aggiuntivo: row['Contesto_aggiuntivo'] || row['contesto_aggiuntivo'] || '',
         citta: row['Città'] || row['citta'] || row['City'] || row['city'] || '',
         canale_preferito: row['Canale'] || row['canale_preferito'] || row['Canale_preferito'] || 'whatsapp',
-      stato: 'nuovo'
-})).filter(lead => lead.nome && lead.telefono)
+        stato: 'nuovo'
+      })).filter(lead => lead.nome && lead.telefono)
       
       if (leadsToInsert.length === 0) {
         alert('⚠️ Nessun lead valido trovato. Assicurati che il file abbia colonne "Nome" e "Telefono"')
@@ -246,7 +247,7 @@ export default function Dashboard() {
   }
 
   async function handleLogout() {
-    const { error } = await supabase.auth.signOut()
+    await supabase.auth.signOut()
     router.push('/login')
   }
 
@@ -373,36 +374,11 @@ export default function Dashboard() {
               </button>
               {isMenuOpen && (
                 <div className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-lg py-2 min-w-[200px] z-50">
-                  <button
-                    onClick={() => { router.push('/scraping'); setIsMenuOpen(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2"
-                  >
-                    🔍 Scraping
-                  </button>
-                  <button
-                    onClick={() => { router.push('/scraped-leads'); setIsMenuOpen(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2"
-                  >
-                    📋 Lead Scrapati
-                  </button>
-                  <button
-                  onClick={() => { router.push('/campaigns'); setIsMenuOpen(false); }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2"
-                  >
-                    📊 Campagne
-                  </button>
-                  <button
-                    onClick={() => { router.push('/templates'); setIsMenuOpen(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2"
-                  >
-                    📧 Templates
-                  </button>
-                  <button
-                    onClick={() => { router.push('/emails'); setIsMenuOpen(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2"
-                  >
-                    📬 Email
-                  </button>
+                  <button onClick={() => { router.push('/scraping'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2">🔍 Scraping</button>
+                  <button onClick={() => { router.push('/scraped-leads'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2">📋 Lead Scrapati</button>
+                  <button onClick={() => { router.push('/campaigns'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2">📊 Campagne</button>
+                  <button onClick={() => { router.push('/templates'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2">📧 Templates</button>
+                  <button onClick={() => { router.push('/emails'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2">📬 Email</button>
                 </div>
               )}
             </div>
@@ -426,7 +402,8 @@ export default function Dashboard() {
       </header>
 
       <main className="p-6 max-w-7xl mx-auto">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {/* STATS */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="bg-white rounded-lg p-4 shadow-sm">
             <p className="text-xs text-slate-500">Totali</p>
             <p className="text-2xl font-bold text-slate-800">{stats.totale}</p>
@@ -443,8 +420,13 @@ export default function Dashboard() {
             <p className="text-xs text-green-600">Approvati</p>
             <p className="text-2xl font-bold text-green-700">{stats.approvato}</p>
           </div>
+          <div className="bg-purple-50 rounded-lg p-4 shadow-sm">
+            <p className="text-xs text-purple-600">Contattati</p>
+            <p className="text-2xl font-bold text-purple-700">{stats.contattato}</p>
+          </div>
         </div>
 
+        {/* SEARCH */}
         <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
           <div className="relative">
             <input
@@ -464,6 +446,7 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* FILTRI */}
         <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
           <p className="text-sm font-medium text-slate-700 mb-3">Mostra:</p>
           <div className="flex flex-wrap gap-2">
@@ -479,9 +462,13 @@ export default function Dashboard() {
             <button onClick={() => setFiltroAttivo('approvato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAttivo === 'approvato' ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               ✅ Approvati ({stats.approvato})
             </button>
+            <button onClick={() => setFiltroAttivo('contattato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAttivo === 'contattato' ? 'bg-purple-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              💬 Contattati ({stats.contattato})
+            </button>
           </div>
         </div>
 
+        {/* LISTA LEAD */}
         {leadsFiltered.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg">
             <p className="text-slate-500">
@@ -499,19 +486,13 @@ export default function Dashboard() {
                 <div className="mt-3 space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm text-slate-600 flex-1">📞 {lead.telefono}</p>
-                    <a href={`tel:${lead.telefono}`} className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition-all font-medium">
-                      📞 Chiama
-                    </a>
-                    <a href={`https://wa.me/${lead.telefono.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-700 transition-all font-medium">
-                      💬 WhatsApp
-                    </a>
+                    <a href={`tel:${lead.telefono}`} className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-blue-700 transition-all font-medium">📞 Chiama</a>
+                    <a href={`https://wa.me/${lead.telefono.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-green-700 transition-all font-medium">💬 WhatsApp</a>
                   </div>
                   {lead.email && (
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm text-slate-600 flex-1">📧 {lead.email}</p>
-                      <a href={`mailto:${lead.email}`} className="bg-slate-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-slate-700 transition-all font-medium">
-                        📧 Email
-                      </a>
+                      <a href={`mailto:${lead.email}`} className="bg-slate-600 text-white px-3 py-1 rounded-lg text-xs hover:bg-slate-700 transition-all font-medium">📧 Email</a>
                     </div>
                   )}
                   {lead.citta && <p className="text-sm text-slate-600">📍 {lead.citta}</p>}
@@ -524,11 +505,13 @@ export default function Dashboard() {
                     lead.stato === 'nuovo' ? 'bg-blue-100 text-blue-700' :
                     lead.stato === 'in_attesa_approvazione' ? 'bg-orange-100 text-orange-700' :
                     lead.stato === 'approvato' ? 'bg-green-100 text-green-700' :
+                    lead.stato === 'contattato' ? 'bg-purple-100 text-purple-700' :
                     'bg-slate-100 text-slate-700'
                   }`}>
                     {lead.stato === 'nuovo' ? '🔵 Nuovo' :
                      lead.stato === 'in_attesa_approvazione' ? '🟠 In Attesa' :
-                     lead.stato === 'approvato' ? '✅ Approvato' : lead.stato}
+                     lead.stato === 'approvato' ? '✅ Approvato' :
+                     lead.stato === 'contattato' ? '💬 Contattato' : lead.stato}
                   </span>
                 </div>
                 <div className="mt-4 flex gap-2 flex-wrap">
@@ -548,19 +531,14 @@ export default function Dashboard() {
         )}
       </main>
 
+      {/* MODAL UPLOAD */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-lg w-full p-6">
             <h3 className="text-xl font-bold text-slate-800 mb-4">📤 Upload Excel</h3>
             <div className="space-y-4">
               <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center">
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="excel-upload"
-                />
+                <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileSelect} className="hidden" id="excel-upload" />
                 <label htmlFor="excel-upload" className="cursor-pointer">
                   <div className="text-4xl mb-2">📁</div>
                   <p className="text-slate-600">Clicca per selezionare file Excel</p>
@@ -587,24 +565,12 @@ export default function Dashboard() {
                 </div>
               )}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-700">
-                  <strong>📋 Colonne supportate:</strong><br />
-                  Nome, Telefono, Email, Interesse, Città, Canale
-                </p>
+                <p className="text-sm text-blue-700"><strong>📋 Colonne supportate:</strong><br />Nome, Telefono, Email, Interesse, Città, Canale</p>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => { setIsUploadModalOpen(false); setUploadFile(null); setUploadPreview([]); }}
-                className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleImportExcel}
-                disabled={!uploadFile || uploadLoading}
-                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button onClick={() => { setIsUploadModalOpen(false); setUploadFile(null); setUploadPreview([]); }} className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium">Annulla</button>
+              <button onClick={handleImportExcel} disabled={!uploadFile || uploadLoading} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed">
                 {uploadLoading ? '⏳ Importando...' : '📤 Importa'}
               </button>
             </div>
@@ -612,6 +578,7 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* MODAL NUOVO LEAD */}
       {isNewLeadModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-lg w-full p-6">
@@ -619,51 +586,23 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Nome *</label>
-                <input
-                  type="text"
-                  value={newLeadForm.nome}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, nome: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Dr. Mario Rossi"
-                />
+                <input type="text" value={newLeadForm.nome} onChange={(e) => setNewLeadForm({...newLeadForm, nome: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Dr. Mario Rossi" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Telefono *</label>
-                <input
-                  type="text"
-                  value={newLeadForm.telefono}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, telefono: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="3471234567"
-                />
+                <input type="text" value={newLeadForm.telefono} onChange={(e) => setNewLeadForm({...newLeadForm, telefono: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="3471234567" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={newLeadForm.email}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, email: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="mario.rossi@example.com"
-                />
+                <input type="email" value={newLeadForm.email} onChange={(e) => setNewLeadForm({...newLeadForm, email: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="mario.rossi@example.com" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Interesse</label>
-                <input
-                  type="text"
-                  value={newLeadForm.interesse}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, interesse: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Endodonzia, Implantologia..."
-                />
+                <input type="text" value={newLeadForm.interesse} onChange={(e) => setNewLeadForm({...newLeadForm, interesse: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Endodonzia, Implantologia..." />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Canale Preferito</label>
-                <select
-                  value={newLeadForm.canale_preferito}
-                  onChange={(e) => setNewLeadForm({...newLeadForm, canale_preferito: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select value={newLeadForm.canale_preferito} onChange={(e) => setNewLeadForm({...newLeadForm, canale_preferito: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="whatsapp">WhatsApp</option>
                   <option value="email">Email</option>
                   <option value="entrambi">Entrambi</option>
@@ -671,23 +610,14 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setIsNewLeadModalOpen(false)}
-                className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleNewLead}
-                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all font-medium"
-              >
-                ➕ Aggiungi Lead
-              </button>
+              <button onClick={() => setIsNewLeadModalOpen(false)} className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium">Annulla</button>
+              <button onClick={handleNewLead} className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all font-medium">➕ Aggiungi Lead</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* MODAL MODIFICA */}
       {isEditModalOpen && selectedLead && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-lg w-full p-6">
@@ -695,47 +625,23 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Nome *</label>
-                <input
-                  type="text"
-                  value={editForm.nome}
-                  onChange={(e) => setEditForm({...editForm, nome: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <input type="text" value={editForm.nome} onChange={(e) => setEditForm({...editForm, nome: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Telefono *</label>
-                <input
-                  type="text"
-                  value={editForm.telefono}
-                  onChange={(e) => setEditForm({...editForm, telefono: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <input type="text" value={editForm.telefono} onChange={(e) => setEditForm({...editForm, telefono: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({...editForm, email: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <input type="email" value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Interesse</label>
-                <input
-                  type="text"
-                  value={editForm.interesse}
-                  onChange={(e) => setEditForm({...editForm, interesse: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <input type="text" value={editForm.interesse} onChange={(e) => setEditForm({...editForm, interesse: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Canale Preferito</label>
-                <select
-                  value={editForm.canale_preferito}
-                  onChange={(e) => setEditForm({...editForm, canale_preferito: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select value={editForm.canale_preferito} onChange={(e) => setEditForm({...editForm, canale_preferito: e.target.value})} className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="whatsapp">WhatsApp</option>
                   <option value="email">Email</option>
                   <option value="entrambi">Entrambi</option>
@@ -743,54 +649,30 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleEditLead}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all font-medium"
-              >
-                💾 Salva Modifiche
-              </button>
+              <button onClick={() => setIsEditModalOpen(false)} className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium">Annulla</button>
+              <button onClick={handleEditLead} className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all font-medium">💾 Salva Modifiche</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* MODAL ELIMINA */}
       {isDeleteModalOpen && selectedLead && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-md w-full p-6">
             <h3 className="text-xl font-bold text-red-600 mb-4">⚠️ Conferma Eliminazione</h3>
-            <p className="text-slate-700 mb-2">
-              Sei sicuro di voler eliminare definitivamente questo lead?
-            </p>
+            <p className="text-slate-700 mb-2">Sei sicuro di voler eliminare definitivamente questo lead?</p>
             <p className="text-sm text-slate-600 mb-4">
               <strong>{selectedLead.nome}</strong><br />
               {selectedLead.telefono}<br />
               {selectedLead.interesse}
             </p>
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-              <p className="text-sm text-red-700">
-                <strong>⚠️ Attenzione:</strong> Questa azione è <strong>irreversibile</strong>.
-                Tutti i dati associati saranno eliminati.
-              </p>
+              <p className="text-sm text-red-700"><strong>⚠️ Attenzione:</strong> Questa azione è <strong>irreversibile</strong>.</p>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleDeleteLead}
-                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all font-medium"
-              >
-                🗑️ Elimina
-              </button>
+              <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium">Annulla</button>
+              <button onClick={handleDeleteLead} className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all font-medium">🗑️ Elimina</button>
             </div>
           </div>
         </div>
