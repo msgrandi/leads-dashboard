@@ -379,6 +379,7 @@ export default function Dashboard() {
                   <button onClick={() => { router.push('/campaigns'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2">📊 Campagne</button>
                   <button onClick={() => { router.push('/templates'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2">📧 Templates</button>
                   <button onClick={() => { router.push('/emails'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2">📬 Email</button>
+                  <button onClick={() => { router.push('/log'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-slate-100 text-slate-700 flex items-center gap-2">📋 Log Operazioni</button>
                 </div>
               )}
             </div>
