@@ -15,7 +15,19 @@ type LogEntry = {
   azione: string
   dettagli: string
   timestamp: string
-  leads?: { nome: string, telefono: string }
+  leads?: any
+}
+
+function getNome(log: LogEntry): string {
+  if (!log.leads) return `Lead #${log.lead_id}`
+  if (Array.isArray(log.leads)) return log.leads[0]?.nome || `Lead #${log.lead_id}`
+  return log.leads.nome || `Lead #${log.lead_id}`
+}
+
+function getTelefono(log: LogEntry): string | null {
+  if (!log.leads) return null
+  if (Array.isArray(log.leads)) return log.leads[0]?.telefono || null
+  return log.leads.telefono || null
 }
 
 export default function LogPage() {
@@ -25,6 +37,13 @@ export default function LogPage() {
   const [filtroAzione, setFiltroAzione] = useState('tutti')
   const [searchQuery, setSearchQuery] = useState('')
   const [logsFiltered, setLogsFiltered] = useState<LogEntry[]>([])
+  const [contatori, setContatori] = useState({
+    totale: 0,
+    template_inviato: 0,
+    approvato: 0,
+    generato: 0,
+    modificato: 0
+  })
 
   useEffect(() => {
     fetchLogs()
@@ -33,11 +52,16 @@ export default function LogPage() {
   useEffect(() => {
     let filtered = logs
     if (filtroAzione !== 'tutti') {
-      filtered = filtered.filter(l => l.azione === filtroAzione)
+      if (filtroAzione === 'template_whatsapp_inviato') {
+        filtered = filtered.filter(l => l.azione === 'template_whatsapp_inviato' || l.azione === 'template_whatsapp_utilizzato')
+      } else {
+        filtered = filtered.filter(l => l.azione === filtroAzione)
+      }
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
       filtered = filtered.filter(l =>
+        getNome(l).toLowerCase().includes(q) ||
         l.dettagli?.toLowerCase().includes(q) ||
         l.azione?.toLowerCase().includes(q)
       )
@@ -55,8 +79,16 @@ export default function LogPage() {
     if (error) {
       console.error('Errore fetch log:', error)
     } else {
-      setLogs(data || [])
-      setLogsFiltered(data || [])
+      const d = data || []
+      setLogs(d)
+      setLogsFiltered(d)
+      setContatori({
+        totale: d.length,
+        template_inviato: d.filter((l: LogEntry) => l.azione === 'template_whatsapp_inviato' || l.azione === 'template_whatsapp_utilizzato').length,
+        approvato: d.filter((l: LogEntry) => l.azione === 'messaggio_approvato').length,
+        generato: d.filter((l: LogEntry) => l.azione === 'messaggio_generato').length,
+        modificato: d.filter((l: LogEntry) => l.azione === 'lead_modificato').length
+      })
     }
     setLoading(false)
   }
@@ -113,11 +145,35 @@ export default function LogPage() {
 
       <main className="p-6 max-w-7xl mx-auto">
 
+        {/* CONTATORI */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <div className="bg-white rounded-lg p-4 shadow-sm">
+            <p className="text-xs text-slate-500">Totali</p>
+            <p className="text-2xl font-bold text-slate-800">{contatori.totale}</p>
+          </div>
+          <div className="bg-green-50 rounded-lg p-4 shadow-sm">
+            <p className="text-xs text-green-600">Template Inviati</p>
+            <p className="text-2xl font-bold text-green-700">{contatori.template_inviato}</p>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-4 shadow-sm">
+            <p className="text-xs text-blue-600">Approvati</p>
+            <p className="text-2xl font-bold text-blue-700">{contatori.approvato}</p>
+          </div>
+          <div className="bg-purple-50 rounded-lg p-4 shadow-sm">
+            <p className="text-xs text-purple-600">Generati</p>
+            <p className="text-2xl font-bold text-purple-700">{contatori.generato}</p>
+          </div>
+          <div className="bg-orange-50 rounded-lg p-4 shadow-sm">
+            <p className="text-xs text-orange-600">Modificati</p>
+            <p className="text-2xl font-bold text-orange-700">{contatori.modificato}</p>
+          </div>
+        </div>
+
         {/* SEARCH */}
         <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
           <input
             type="text"
-            placeholder="🔍 Cerca per azione o dettagli..."
+            placeholder="🔍 Cerca per nome lead, azione, dettagli..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
@@ -129,19 +185,19 @@ export default function LogPage() {
           <p className="text-sm font-medium text-slate-700 mb-3">Filtra per azione:</p>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setFiltroAzione('tutti')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAzione === 'tutti' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-              📊 Tutti ({logs.length})
+              📊 Tutti ({contatori.totale})
             </button>
             <button onClick={() => setFiltroAzione('template_whatsapp_inviato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAzione === 'template_whatsapp_inviato' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-              💬 Template Inviati
+              💬 Template Inviati ({contatori.template_inviato})
             </button>
             <button onClick={() => setFiltroAzione('messaggio_approvato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAzione === 'messaggio_approvato' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-              ✅ Approvati
+              ✅ Approvati ({contatori.approvato})
             </button>
             <button onClick={() => setFiltroAzione('messaggio_generato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAzione === 'messaggio_generato' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-              🤖 Generati
+              🤖 Generati ({contatori.generato})
             </button>
             <button onClick={() => setFiltroAzione('lead_modificato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAzione === 'lead_modificato' ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-              ✏️ Modificati
+              ✏️ Modificati ({contatori.modificato})
             </button>
           </div>
         </div>
@@ -164,7 +220,7 @@ export default function LogPage() {
                       onClick={() => router.push(`/lead/${log.lead_id}`)}
                       className="text-sm font-medium text-blue-600 hover:text-blue-800"
                     >
-                      {log.leads?.nome || `Lead #${log.lead_id}`}
+                      {getNome(log)}
                     </button>
                   </div>
                   <span className="text-xs text-slate-400">
@@ -174,8 +230,8 @@ export default function LogPage() {
                 {log.dettagli && (
                   <p className="text-sm text-slate-600 mt-1">{log.dettagli}</p>
                 )}
-                {log.leads?.telefono && (
-                  <p className="text-xs text-slate-400 mt-1">📞 {log.leads.telefono}</p>
+                {getTelefono(log) && (
+                  <p className="text-xs text-slate-400 mt-1">📞 {getTelefono(log)}</p>
                 )}
               </div>
             ))}
