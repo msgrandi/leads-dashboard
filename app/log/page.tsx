@@ -15,6 +15,7 @@ type LogEntry = {
   azione: string
   dettagli: string
   timestamp: string
+  leads?: { nome: string, telefono: string }
 }
 
 export default function LogPage() {
@@ -47,7 +48,7 @@ export default function LogPage() {
   async function fetchLogs() {
     const { data, error } = await supabase
       .from('log')
-      .select('*')
+      .select('*, leads(nome, telefono)')
       .order('timestamp', { ascending: false })
       .limit(200)
 
@@ -163,7 +164,7 @@ export default function LogPage() {
                       onClick={() => router.push(`/lead/${log.lead_id}`)}
                       className="text-sm font-medium text-blue-600 hover:text-blue-800"
                     >
-                      Lead #{log.lead_id}
+                      {log.leads?.nome || `Lead #${log.lead_id}`}
                     </button>
                   </div>
                   <span className="text-xs text-slate-400">
@@ -172,6 +173,9 @@ export default function LogPage() {
                 </div>
                 {log.dettagli && (
                   <p className="text-sm text-slate-600 mt-1">{log.dettagli}</p>
+                )}
+                {log.leads?.telefono && (
+                  <p className="text-xs text-slate-400 mt-1">📞 {log.leads.telefono}</p>
                 )}
               </div>
             ))}
