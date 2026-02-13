@@ -15,7 +15,6 @@ type LogEntry = {
   azione: string
   dettagli: string
   timestamp: string
-  leads?: { nome: string, telefono: string }
 }
 
 export default function LogPage() {
@@ -38,7 +37,6 @@ export default function LogPage() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
       filtered = filtered.filter(l =>
-        l.leads?.nome?.toLowerCase().includes(q) ||
         l.dettagli?.toLowerCase().includes(q) ||
         l.azione?.toLowerCase().includes(q)
       )
@@ -49,7 +47,7 @@ export default function LogPage() {
   async function fetchLogs() {
     const { data, error } = await supabase
       .from('log')
-      .select('*, leads(nome, telefono)')
+      .select('*')
       .order('timestamp', { ascending: false })
       .limit(200)
 
@@ -118,7 +116,7 @@ export default function LogPage() {
         <div className="bg-white rounded-lg p-4 shadow-sm mb-6">
           <input
             type="text"
-            placeholder="🔍 Cerca per nome lead, azione, dettagli..."
+            placeholder="🔍 Cerca per azione o dettagli..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
@@ -137,6 +135,9 @@ export default function LogPage() {
             </button>
             <button onClick={() => setFiltroAzione('messaggio_approvato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAzione === 'messaggio_approvato' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               ✅ Approvati
+            </button>
+            <button onClick={() => setFiltroAzione('messaggio_generato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAzione === 'messaggio_generato' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              🤖 Generati
             </button>
             <button onClick={() => setFiltroAzione('lead_modificato')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtroAzione === 'lead_modificato' ? 'bg-orange-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
               ✏️ Modificati
@@ -158,14 +159,12 @@ export default function LogPage() {
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${getBadgeColor(log.azione)}`}>
                       {getAzioneLabel(log.azione)}
                     </span>
-                    {log.leads?.nome && (
-                      <button
-                        onClick={() => router.push(`/lead/${log.lead_id}`)}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                      >
-                        {log.leads.nome}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => router.push(`/lead/${log.lead_id}`)}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      Lead #{log.lead_id}
+                    </button>
                   </div>
                   <span className="text-xs text-slate-400">
                     {new Date(log.timestamp).toLocaleString('it-IT')}
@@ -173,9 +172,6 @@ export default function LogPage() {
                 </div>
                 {log.dettagli && (
                   <p className="text-sm text-slate-600 mt-1">{log.dettagli}</p>
-                )}
-                {log.leads?.telefono && (
-                  <p className="text-xs text-slate-400 mt-1">📞 {log.leads.telefono}</p>
                 )}
               </div>
             ))}
