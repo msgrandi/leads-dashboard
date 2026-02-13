@@ -103,12 +103,10 @@ export default function LeadDetail() {
 
     setUploading(true)
     try {
-      // Nome file unico con timestamp
       const fileExt = file.name.split('.').pop()
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
       const filePath = `${leadId}/${fileName}`
 
-      // Upload file
       const { error: uploadError } = await supabase.storage
         .from('template-allegati')
         .upload(filePath, file)
@@ -119,7 +117,6 @@ export default function LeadDetail() {
         return null
       }
 
-      // Ottieni URL pubblico
       const { data } = supabase.storage
         .from('template-allegati')
         .getPublicUrl(filePath)
@@ -147,13 +144,11 @@ export default function LeadDetail() {
       .replace(/{{telefono}}/g, lead.telefono)
       .replace(/{{email}}/g, lead.email || '')
     
-    // Sostituisci campi extra
     Object.keys(extraData).forEach(key => {
       const regex = new RegExp(`{{${key}}}`, 'g')
       result = result.replace(regex, extraData[key])
     })
 
-    // Aggiungi link allegato se presente CON TESTO DESCRITTIVO
     if (fileUrl && fileName) {
       result += `\n\n📄 *Locandina evento:* ${fileName}\n🔗 Scarica qui: ${fileUrl}`
     }
@@ -164,7 +159,6 @@ export default function LeadDetail() {
   function viewTemplate(template: Template) {
     if (!lead) return
     
-    // Se ha campi extra o supporta allegati, mostra form prima
     if ((template.campi_extra && template.campi_extra.length > 0) || template.supporta_allegato) {
       setSelectedTemplate(template)
       setExtraFields({})
@@ -173,7 +167,6 @@ export default function LeadDetail() {
       setAllegatoFileName('')
       setShowFormModal(true)
     } else {
-      // Altrimenti mostra direttamente anteprima
       const personalized = personalizeTemplate(template.template, lead)
       setSelectedTemplate(template)
       setTemplatePreview(personalized)
@@ -184,7 +177,6 @@ export default function LeadDetail() {
   async function handleFormSubmit() {
     if (!selectedTemplate || !lead) return
     
-    // Verifica che tutti i campi siano compilati
     const missingFields = selectedTemplate.campi_extra?.filter(
       field => !extraFields[field.name]?.trim()
     )
@@ -194,7 +186,6 @@ export default function LeadDetail() {
       return
     }
 
-    // Upload file se presente
     let fileUrl = allegatoUrl
     let fileName = allegatoFileName
     
@@ -203,7 +194,6 @@ export default function LeadDetail() {
       fileName = allegatoFile.name
     }
     
-    // Genera anteprima con i dati del form
     const personalized = personalizeTemplate(selectedTemplate.template, lead, extraFields, fileUrl, fileName)
     setTemplatePreview(personalized)
     setAllegatoUrl(fileUrl)
@@ -212,28 +202,46 @@ export default function LeadDetail() {
     setShowTemplateModal(true)
   }
 
-  function useTemplate(template: Template) {
+  async function useTemplate(template: Template) {
     if (!lead) return
     const encoded = encodeURIComponent(templatePreview)
     const whatsappUrl = `https://wa.me/${lead.telefono.replace(/\D/g, '')}?text=${encoded}`
     
     window.open(whatsappUrl, '_blank')
-    
-    // Log uso template
-    logTemplateUsage(template.id)
+
+    // Salva log con nome template e data/ora
+    await supabase.from('log').insert({
+      lead_id: leadId,
+      azione: 'template_whatsapp_inviato',
+      dettagli: `Template: ${template.nome} | Data: ${new Date().toLocaleString('it-IT')}${allegatoUrl ? ' | Allegato: ' + allegatoFileName : ''}`
+    })
+
+    // Cambia stato lead a "contattato"
+    await supabase
+      .from('leads')
+      .update({ stato: 'contattato' })
+      .eq('id', leadId)
+
+    // Notifica email a Mario
+    await fetch('/api/notifica-template', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        leadNome: lead.nome,
+        leadTelefono: lead.telefono,
+        templateNome: template.nome,
+        dataOra: new Date().toLocaleString('it-IT')
+      })
+    })
+
     setShowTemplateModal(false)
     setExtraFields({})
     setAllegatoFile(null)
     setAllegatoUrl('')
     setAllegatoFileName('')
-  }
-
-  async function logTemplateUsage(templateId: number) {
-    await supabase.from('log').insert({
-      lead_id: leadId,
-      azione: 'template_whatsapp_utilizzato',
-      dettagli: `Template ID: ${templateId}${allegatoUrl ? ' - Con allegato: ' + allegatoFileName : ''}`
-    })
+    
+    fetchLead()
+    alert('✅ Template inviato! Lead aggiornato a "Contattato"')
   }
 
   async function approvaMessaggio(tipo: string, testo: string) {
@@ -376,9 +384,14 @@ export default function LeadDetail() {
             <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
               lead.stato === 'nuovo' ? 'bg-blue-100 text-blue-700' :
               lead.stato === 'in_attesa_approvazione' ? 'bg-orange-100 text-orange-700' :
-              'bg-green-100 text-green-700'
+              lead.stato === 'approvato' ? 'bg-green-100 text-green-700' :
+              lead.stato === 'contattato' ? 'bg-purple-100 text-purple-700' :
+              'bg-slate-100 text-slate-700'
             }`}>
-              {lead.stato}
+              {lead.stato === 'nuovo' ? '🔵 Nuovo' :
+               lead.stato === 'in_attesa_approvazione' ? '🟠 In Attesa' :
+               lead.stato === 'approvato' ? '✅ Approvato' :
+               lead.stato === 'contattato' ? '💬 Contattato' : lead.stato}
             </span>
           </div>
         </div>
@@ -519,7 +532,7 @@ export default function LeadDetail() {
         {(messaggiWhatsApp || messaggiEmail) && (
           <button
             onClick={() => setShowFeedbackModal(true)}
-            className="w-full bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-all font-medium"
+            className="w-full bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-all font-medium mb-6"
           >
             🔄 Rigenera messaggi con feedback
           </button>
@@ -546,7 +559,6 @@ export default function LeadDetail() {
               <p className="text-sm text-slate-500 mb-4">Compila i campi per personalizzare il template</p>
 
               <div className="space-y-4">
-                {/* CAMPI EXTRA */}
                 {selectedTemplate.campi_extra?.map((field) => (
                   <div key={field.name}>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -562,7 +574,6 @@ export default function LeadDetail() {
                   </div>
                 ))}
 
-                {/* UPLOAD ALLEGATO */}
                 {selectedTemplate.supporta_allegato && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -584,18 +595,11 @@ export default function LeadDetail() {
                       }}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
-                    <p className="text-xs text-slate-500 mt-1">
-                      Formati: PDF, JPG, PNG - Max 10MB
-                    </p>
+                    <p className="text-xs text-slate-500 mt-1">Formati: PDF, JPG, PNG - Max 10MB</p>
                     {allegatoFile && (
                       <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
                         <span>✅ {allegatoFile.name}</span>
-                        <button
-                          onClick={() => setAllegatoFile(null)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          ✕
-                        </button>
+                        <button onClick={() => setAllegatoFile(null)} className="text-red-600 hover:text-red-800">✕</button>
                       </div>
                     )}
                   </div>
@@ -604,13 +608,7 @@ export default function LeadDetail() {
 
               <div className="flex gap-3 mt-6">
                 <button
-                  onClick={() => {
-                    setShowFormModal(false)
-                    setExtraFields({})
-                    setAllegatoFile(null)
-                    setAllegatoUrl('')
-                    setAllegatoFileName('')
-                  }}
+                  onClick={() => { setShowFormModal(false); setExtraFields({}); setAllegatoFile(null); setAllegatoUrl(''); setAllegatoFileName('') }}
                   disabled={uploading}
                   className="flex-1 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-all font-medium disabled:opacity-50"
                 >
@@ -633,9 +631,7 @@ export default function LeadDetail() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-lg w-full p-6">
               <h3 className="text-xl font-bold text-slate-800 mb-4">🔄 Rigenera con Feedback</h3>
-              <p className="text-sm text-slate-600 mb-4">
-                Descrivi cosa vuoi migliorare nei messaggi:
-              </p>
+              <p className="text-sm text-slate-600 mb-4">Descrivi cosa vuoi migliorare nei messaggi:</p>
               <textarea
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
@@ -672,13 +668,7 @@ export default function LeadDetail() {
                   <p className="text-sm text-slate-500">{selectedTemplate.descrizione}</p>
                 </div>
                 <button
-                  onClick={() => {
-                    setShowTemplateModal(false)
-                    setExtraFields({})
-                    setAllegatoFile(null)
-                    setAllegatoUrl('')
-                    setAllegatoFileName('')
-                  }}
+                  onClick={() => { setShowTemplateModal(false); setExtraFields({}); setAllegatoFile(null); setAllegatoUrl(''); setAllegatoFileName('') }}
                   className="text-slate-400 hover:text-slate-600 text-2xl font-bold"
                 >
                   ✕
@@ -703,13 +693,7 @@ export default function LeadDetail() {
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => {
-                    setShowTemplateModal(false)
-                    setExtraFields({})
-                    setAllegatoFile(null)
-                    setAllegatoUrl('')
-                    setAllegatoFileName('')
-                  }}
+                  onClick={() => { setShowTemplateModal(false); setExtraFields({}); setAllegatoFile(null); setAllegatoUrl(''); setAllegatoFileName('') }}
                   className="flex-1 bg-slate-200 text-slate-700 px-4 py-3 rounded-lg hover:bg-slate-300 transition-all font-medium"
                 >
                   Annulla
