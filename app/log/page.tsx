@@ -14,7 +14,7 @@ type LogEntry = {
   lead_id: number
   azione: string
   dettagli: string
-  created_at: string
+  timestamp: string
   leads?: { nome: string, telefono: string }
 }
 
@@ -50,7 +50,7 @@ export default function LogPage() {
     const { data, error } = await supabase
       .from('log')
       .select('*, leads(nome, telefono)')
-      .order('created_at', { ascending: false })
+      .order('timestamp', { ascending: false })
       .limit(200)
 
     if (error) {
@@ -168,7 +168,7 @@ export default function LogPage() {
                     )}
                   </div>
                   <span className="text-xs text-slate-400">
-                    {new Date(log.created_at).toLocaleString('it-IT')}
+                    {new Date(log.timestamp).toLocaleString('it-IT')}
                   </span>
                 </div>
                 {log.dettagli && (
